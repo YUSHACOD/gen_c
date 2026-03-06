@@ -36,6 +36,17 @@ type FuncType struct {
 	Params string
 	Args   string
 	Return string
+	Header string
+}
+
+func (f FuncType) Print() {
+	fmt.Println("[[")
+	fmt.Printf("\tName   -> %s \n", f.Name)
+	fmt.Printf("\tParams -> %s \n", f.Params)
+	fmt.Printf("\tArgs   -> %s \n", f.Args)
+	fmt.Printf("\tReturn -> %s \n", f.Return)
+	fmt.Printf("\tHeader -> %s \n", f.Header)
+	fmt.Println("]]")
 }
 
 func GenFuncType(funcType FuncType) (string, error) {
@@ -52,15 +63,16 @@ func GenFuncType(funcType FuncType) (string, error) {
 	return res.String(), nil
 }
 
-func GenHook(funcType FuncType) (string, error) {
+func GenHook(funcs []FuncType) (string, error) {
 	const hook_template = `
+{{range . }}
 static {{.Return}} (WINAPI *og_{{.Name}}){{.Params}} = {{.Name}};
 static {{.Return}} WINAPI hooked_{{.Name}}{{.Params}} {
 
     if(IsDebuggerPresent()) {
     	__debugbreak();
     }
-	{{if eq .Return "void"}}
+	{{if or (eq .Return "void") (eq .Return "VOID")}}
 	TIME({ og_{{.Name}}{{.Args}}; });
 	{{else}}
     {{.Return}} result;
@@ -70,35 +82,38 @@ static {{.Return}} WINAPI hooked_{{.Name}}{{.Params}} {
     	__debugbreak();
     }
 
-    return result;
-	{{end}}
+    return result;{{end}}
 }
+{{end}}
 `
 	hook_template_t := template.Must(template.New("hook_template").Parse(hook_template))
 
 	var res strings.Builder
-	err := hook_template_t.Execute(&res, funcType)
+	err := hook_template_t.Execute(&res, funcs)
 	if err != nil {
-		return "", fmt.Errorf("Error executing func type %v : %v", funcType, err)
+		return "", fmt.Errorf("Error executing func type %v : %v", funcs, err)
 	}
 
 	return res.String(), nil
 }
 
 func GenHookTable(funcs []FuncType) (string, error) {
-	const table_element_template = "{&(void *&)og_{{.Name}}, (void *)hooked_{{.Name}}},\n"
-	table_element_template_t := template.Must(template.New("element_template").Parse(table_element_template))
+	const table_element_template = `
+static Hook GLBL_hooks[] = {
+	{{range . }}{&(void *&)og_{{.Name}}, (void *)hooked_{{.Name}}},
+	{{end}}
+};
+`
+
+	table_element_template_t := template.Must(
+		template.New("element_template").Parse(table_element_template))
 
 	var res strings.Builder
-	res.WriteString("static Hook GLBL_hooks[] = {\n")
 
-	for _, f := range funcs {
-		err := table_element_template_t.Execute(&res, f)
-		if err != nil {
-			return "", fmt.Errorf("Error executing func element %v : %v", f, err)
-		}
+	err := table_element_template_t.Execute(&res, funcs)
+	if err != nil {
+		return "", fmt.Errorf("Error executing func element %v : %v", funcs, err)
 	}
 
-	res.WriteString("};\n")
 	return res.String(), nil
 }

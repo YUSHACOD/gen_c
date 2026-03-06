@@ -2,66 +2,193 @@ package main
 
 import (
 	"fmt"
+	"log"
+	"regexp"
+	"strings"
+
+	"database/sql"
 
 	"github.com/YUSHACOD/gen_c/gnrtr"
+
+	_ "github.com/mattn/go-sqlite3"
 )
 
+func OpenDB(file_path string) (*sql.DB, func() error) {
+	db, err := sql.Open("sqlite3", file_path)
+	if err != nil {
+		log.Panicln("Cannot open ntdocs.db :", err)
+	}
+	return db, db.Close
+}
+
+func filterFuncSig(sig *gnrtr.FuncType) {
+
+	firstWord := func(s string) string {
+		fields := strings.Fields(s)
+		if len(fields) == 0 {
+			return ""
+		}
+		return fields[0]
+	}
+
+	removeBracketed := func(s string) string {
+		re := regexp.MustCompile(`\[[^\]]*\]`)
+		return strings.Trim(re.ReplaceAllString(s, ""), " ")
+	}
+
+	paramsToArgs := func(params string) string {
+
+		parts := strings.Split(params, ",")
+		args := make([]string, 0, len(parts))
+
+		for _, p := range parts {
+			fields := strings.Fields(strings.TrimSpace(p))
+			if len(fields) == 0 {
+				continue
+			}
+
+			name := fields[len(fields)-1]
+			name = strings.TrimLeft(name, "*") // handle "*c"
+			args = append(args, name)
+		}
+
+		return strings.Join(args, ", ")
+	}
+
+	sig.Params = removeBracketed(sig.Params)
+	sig.Args = paramsToArgs(sig.Params)
+	sig.Header = firstWord(sig.Header)
+}
+
+func GetFuncSigsInDll(db *sql.DB, dll_name string) ([]gnrtr.FuncType, error) {
+
+	res := []gnrtr.FuncType{}
+
+	query_string := fmt.Sprintf(
+		"SELECT FunctionSignatures.name, FunctionSignatures.parameters, FunctionSignatures.ret, FunctionSignatures.header FROM FunctionSignatures WHERE FunctionSignatures.dll like %s ;",
+		fmt.Sprintf("'%%%s%%'", dll_name),
+	)
+	func_names_stmnt, err := db.Prepare(query_string)
+	if err != nil {
+		return res, fmt.Errorf("Failed to prepare the function names query, due to: %v", err)
+	}
+	defer func_names_stmnt.Close()
+
+	{ // Executing the query and appending the signatures to the result list
+		func_name_query, er := func_names_stmnt.Query()
+		if er != nil {
+			return res, fmt.Errorf("query of func names failed for %s : %v", dll_name, err)
+		}
+		defer func_name_query.Close()
+
+		for func_name_query.Next() {
+			err = func_name_query.Err()
+			if err != nil {
+				fmt.Printf("iteration error %v\n", err)
+			}
+
+			var func_sig gnrtr.FuncType
+			err := func_name_query.Scan(
+				&func_sig.Name,
+				&func_sig.Params,
+				&func_sig.Return,
+				&func_sig.Header,
+			)
+			filterFuncSig(&func_sig)
+			if err != nil {
+
+				fmt.Printf("error scaning row : %v\n", err)
+			} else {
+				res = append(res, func_sig)
+			}
+		}
+		err = func_name_query.Err()
+		if err != nil {
+			fmt.Printf("iteration error %v\n", err)
+		}
+	}
+
+	return res, nil
+}
+
 func main() {
+
 	fmt.Printf("Generating c code\n")
 
-	// fields := make([]gnrtr.StructField, 3)
-	// fields[0].Name = "X"
-	// fields[0].Type = "int"
-	//
-	// fields[1].Name = "Y"
-	// fields[1].Type = "int"
-	//
-	// fields[2].Name = "Z"
-	// fields[2].Type = "int"
-	//
-	// struct_string, err := gnrtr.GenStruct("Point", fields)
-	// if err != nil {
-	// 	fmt.Printf("%s\n", err)
-	// } else {
-	// 	fmt.Printf("%s\n", struct_string)
-	// }
-	//
-	// func_t := gnrtr.FuncType{
-	// 	Name:   "add",
-	// 	Args:   "(int x, int y)",
-	// 	Return: "int",
-	// }
-	//
-	// func_type, err := gnrtr.GenFuncType(func_t)
-	// if err != nil {
-	// 	fmt.Printf("%s\n", err)
-	// } else {
-	// 	fmt.Printf("%s\n", func_type)
-	// }
+	if true {
+		db, dbclose := OpenDB("ntdocs.sqlite3")
+		defer dbclose()
 
-	msgBoxA_func := gnrtr.FuncType{
-		Name:   "MessageBoxA",
-		Params: "(HWND hWnd, LPCSTR lpText, LPCSTR lpCaption, UINT uType)",
-		Args:   "(hWnd, lpText, lpCaption, uType)",
-		Return: "int",
+		dll_name := "User32.dll"
+		func_sigs, err := GetFuncSigsInDll(db, dll_name)
+		if err != nil {
+			fmt.Printf("Error retreiving all funcs in dll %s: %v", dll_name, err)
+		} else {
+			for i, sig := range func_sigs {
+				fmt.Printf("(%d) ", i+1)
+				sig.Print()
+				fmt.Println()
+			}
+		}
 	}
 
-	// Generate hooks
-	hook, err := gnrtr.GenHook(msgBoxA_func)
-	if err != nil {
-		fmt.Printf("%s\n", err)
-	} else {
-		fmt.Printf("%s\n", hook)
-	}
+	if false {
+		msgBoxA := gnrtr.FuncType{
+			Name:   "MessageBoxA",
+			Params: "(HWND hWnd, LPCSTR lpText, LPCSTR lpCaption, UINT uType)",
+			Args:   "(hWnd, lpText, lpCaption, uType)",
+			Return: "int",
+		}
 
-	hooks := make([]gnrtr.FuncType, 1)
-	hooks[0] = msgBoxA_func
+		add := gnrtr.FuncType{
+			Name:   "add",
+			Params: "(int x, int y)",
+			Args:   "(x, y)",
+			Return: "int",
+		}
 
-	// Generate hook table
-	hook_table, err := gnrtr.GenHookTable(hooks)
-	if err != nil {
-		fmt.Printf("%s\n", err)
-	} else {
-		fmt.Printf("%s\n", hook_table)
+		sub := gnrtr.FuncType{
+			Name:   "sub",
+			Params: "(int x, int y)",
+			Args:   "(x, y)",
+			Return: "int",
+		}
+
+		incr := gnrtr.FuncType{
+			Name:   "incr",
+			Params: "(int *x)",
+			Args:   "(x)",
+			Return: "VOID",
+		}
+
+		decr := gnrtr.FuncType{
+			Name:   "decr",
+			Params: "(int *x)",
+			Args:   "(x)",
+			Return: "void",
+		}
+
+		hooks := make([]gnrtr.FuncType, 5)
+		hooks[0] = msgBoxA
+		hooks[1] = add
+		hooks[2] = sub
+		hooks[3] = incr
+		hooks[4] = decr
+
+		// Generate hooks
+		hook, err := gnrtr.GenHook(hooks)
+		if err != nil {
+			fmt.Printf("%s\n", err)
+		} else {
+			fmt.Printf("%s\n", hook)
+		}
+
+		// Generate hook table
+		hook_table, err := gnrtr.GenHookTable(hooks)
+		if err != nil {
+			fmt.Printf("%s\n", err)
+		} else {
+			fmt.Printf("%s\n", hook_table)
+		}
 	}
 }
