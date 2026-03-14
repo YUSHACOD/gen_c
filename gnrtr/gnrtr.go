@@ -66,21 +66,20 @@ func GenFuncType(funcType FuncType) (string, error) {
 func GenHook(funcs []FuncType) (string, error) {
 	const hook_template = `
 {{range . }}
-static {{.Return}} (WINAPI *og_{{.Name}}){{.Params}} = {{.Name}};
-static {{.Return}} WINAPI hooked_{{.Name}}{{.Params}} {
+static {{.Return}} (WINAPI *og_{{.Name}})({{.Params}}) = {{.Name}};
+static {{.Return}} WINAPI hooked_{{.Name}}({{.Params}}) {
 
-    if(IsDebuggerPresent()) {
-    	__debugbreak();
-    }
+	SEND_BEFORE_CALL
+
 	{{if or (eq .Return "void") (eq .Return "VOID")}}
-	TIME({ og_{{.Name}}{{.Args}}; });
+	TIME({ og_{{.Name}}({{.Args}}); });
+
+	SEND_AFTER_CALL
 	{{else}}
     {{.Return}} result;
-    TIME({ result = og_{{.Name}}{{.Args}}; });
+    TIME({ result = og_{{.Name}}({{.Args}}); });
 
-    if(IsDebuggerPresent()) {
-    	__debugbreak();
-    }
+	SEND_AFTER_CALL
 
     return result;{{end}}
 }

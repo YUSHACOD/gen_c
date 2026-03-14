@@ -10,6 +10,7 @@ import (
 
 	"github.com/YUSHACOD/gen_c/gnrtr"
 
+	"github.com/hashicorp/go-set/v3"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -113,51 +114,78 @@ func GetFuncSigsInDll(db *sql.DB, dll_name string) ([]gnrtr.FuncType, error) {
 
 func main() {
 
-	fmt.Printf("Generating c code\n")
-
 	if true {
 		db, dbclose := OpenDB("ntdocs.sqlite3")
 		defer dbclose()
 
-		dll_name := "User32.dll"
+		dll_name := "Kernel32.dll"
 		func_sigs, err := GetFuncSigsInDll(db, dll_name)
+		headers := []string{}
 		if err != nil {
 			fmt.Printf("Error retreiving all funcs in dll %s: %v", dll_name, err)
 		} else {
-			for i, sig := range func_sigs {
-				fmt.Printf("(%d) ", i+1)
-				sig.Print()
-				fmt.Println()
+			for _, sig := range func_sigs {
+				// fmt.Printf("(%d) ", i+1)
+				// sig.Print()
+				// fmt.Println()
+				headers = append(headers, sig.Header)
 			}
+		}
+
+		headers = set.From[string](headers).Slice()
+
+		fmt.Println(`#pragma comment(lib, "onecore.lib")`)
+
+
+		fmt.Printf("#include <windows.h>\n")
+		for _, h := range headers {
+			fmt.Printf("#include <%s>\n", h)
+		}
+
+		fmt.Println(`#include "hook_utils.cpp"`)
+
+		hook, err := gnrtr.GenHook(func_sigs)
+		if err != nil {
+			fmt.Printf("%s\n", err)
+		} else {
+			fmt.Printf("%s\n", hook)
+		}
+
+		// Generate hook table
+		hook_table, err := gnrtr.GenHookTable(func_sigs)
+		if err != nil {
+			fmt.Printf("%s\n", err)
+		} else {
+			fmt.Printf("%s\n", hook_table)
 		}
 	}
 
 	if false {
 		msgBoxA := gnrtr.FuncType{
 			Name:   "MessageBoxA",
-			Params: "(HWND hWnd, LPCSTR lpText, LPCSTR lpCaption, UINT uType)",
-			Args:   "(hWnd, lpText, lpCaption, uType)",
+			Params: "HWND hWnd, LPCSTR lpText, LPCSTR lpCaption, UINT uType",
+			Args:   "hWnd, lpText, lpCaption, uType",
 			Return: "int",
 		}
 
 		add := gnrtr.FuncType{
 			Name:   "add",
-			Params: "(int x, int y)",
-			Args:   "(x, y)",
+			Params: "int x, int y",
+			Args:   "x, y",
 			Return: "int",
 		}
 
 		sub := gnrtr.FuncType{
 			Name:   "sub",
-			Params: "(int x, int y)",
-			Args:   "(x, y)",
+			Params: "int x, int y",
+			Args:   "x, y",
 			Return: "int",
 		}
 
 		incr := gnrtr.FuncType{
 			Name:   "incr",
-			Params: "(int *x)",
-			Args:   "(x)",
+			Params: "int *x",
+			Args:   "x",
 			Return: "VOID",
 		}
 
