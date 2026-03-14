@@ -2,27 +2,24 @@ package main
 
 import (
 	"fmt"
+	"log"
+	"os"
 
-	"github.com/YUSHACOD/gen_c/gnrtr"
+	"github.com/YUSHACOD/gen_c/genc_fmt"
+	// "github.com/YUSHACOD/gen_c/gnrtr"
 )
 
 func main() {
 	fmt.Printf("Generating c code\n")
 
-	fields := make([]gnrtr.StructField, 3)
-	fields[0].Name = "X"
-	fields[0].Type = "int"
-
-	fields[1].Name = "Y"
-	fields[1].Type = "int"
-
-	fields[2].Name = "Z"
-	fields[2].Type = "int"
-
-	struct_string, err := gnrtr.GenStruct("Point", fields)
+	genc_file := os.Args[1]
+	content, err := os.ReadFile(genc_file)
 	if err != nil {
-		fmt.Printf("%s\n", err)
-	} else {
-		fmt.Printf("%s\n", struct_string)
+		log.Fatalf("Input file reading error => %v", err)
 	}
+	
+	// fmt.Printf("%s\n", content)
+
+	gen_commands := genc_fmt.ParseGenc(content)
+	fmt.Printf("%v\n", gen_commands)
 }

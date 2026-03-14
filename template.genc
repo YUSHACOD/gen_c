@@ -1,0 +1,41 @@
+
+@table[Funcs]
+{
+	@fields(name type_name args ret)
+	{Add                add_op_ft                  `int x, int y`         int}
+	{Sub                sub_op_ft                  `int x, int y`         int}
+	{Mul                mul_op_ft                  `int x, int y`         int}
+}
+
+@enum[FuncKind]
+{
+	@expand[Funcs](name)
+}
+
+@enum2string[FuncKind]
+
+@gen_func_types[OperationTypes]
+{
+	@expand[Funcs f]
+	@name(f.name)	
+	@args(f.args)
+	@ret(f.ret)
+}
+
+@gen_func_globals[OperationGlobals]
+{
+	@expand[OperationType ot, Funcs f]
+	@type(ot.type_name)
+	@name(f.name)
+}
+
+@gen_custom_template
+{
+	@expand[OperationGlobals og, OperationTypes ot]
+
+	`
+internal  void load_funcs() {
+	{{range .og}} {{og.global}} = ({{ot.name}} *)wgl_load("{{og.name}}");{{end}}
+}
+	`
+}
