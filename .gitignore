@@ -1,3 +1,4 @@
 *.exe
+generated/*
 ntdocs*
 *.sigs

@@ -2,7 +2,9 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"log"
+	"os"
 	"regexp"
 	"strings"
 
@@ -114,109 +116,53 @@ func GetFuncSigsInDll(db *sql.DB, dll_name string) ([]gnrtr.FuncType, error) {
 
 func main() {
 
-	if true {
-		db, dbclose := OpenDB("ntdocs.sqlite3")
-		defer dbclose()
+	db, dbclose := OpenDB("ntdocs.sqlite3")
+	defer dbclose()
 
-		dll_name := "Kernel32.dll"
-		func_sigs, err := GetFuncSigsInDll(db, dll_name)
-		headers := []string{}
-		if err != nil {
-			fmt.Printf("Error retreiving all funcs in dll %s: %v", dll_name, err)
-		} else {
-			for _, sig := range func_sigs {
-				// fmt.Printf("(%d) ", i+1)
-				// sig.Print()
-				// fmt.Println()
-				headers = append(headers, sig.Header)
-			}
-		}
-
-		headers = set.From[string](headers).Slice()
-
-		fmt.Println(`#pragma comment(lib, "onecore.lib")`)
-
-
-		fmt.Printf("#include <windows.h>\n")
-		for _, h := range headers {
-			fmt.Printf("#include <%s>\n", h)
-		}
-
-		fmt.Println(`#include "hook_utils.cpp"`)
-
-		hook, err := gnrtr.GenHook(func_sigs)
-		if err != nil {
-			fmt.Printf("%s\n", err)
-		} else {
-			fmt.Printf("%s\n", hook)
-		}
-
-		// Generate hook table
-		hook_table, err := gnrtr.GenHookTable(func_sigs)
-		if err != nil {
-			fmt.Printf("%s\n", err)
-		} else {
-			fmt.Printf("%s\n", hook_table)
+	dll_name := "Kernel32.dll"
+	func_sigs, err := GetFuncSigsInDll(db, dll_name)
+	headers := []string{}
+	if err != nil {
+		fmt.Printf("Error retreiving all funcs in dll %s: %v", dll_name, err)
+	} else {
+		for _, sig := range func_sigs {
+			// fmt.Printf("(%d) ", i+1)
+			// sig.Print()
+			// fmt.Println()
+			headers = append(headers, sig.Header)
 		}
 	}
 
-	if false {
-		msgBoxA := gnrtr.FuncType{
-			Name:   "MessageBoxA",
-			Params: "HWND hWnd, LPCSTR lpText, LPCSTR lpCaption, UINT uType",
-			Args:   "hWnd, lpText, lpCaption, uType",
-			Return: "int",
-		}
+	f, err := os.OpenFile("generated/hooks.cpp", os.O_RDWR|os.O_CREATE, 0644)
+	if err != nil {
+		log.Fatal(err)
+	}
 
-		add := gnrtr.FuncType{
-			Name:   "add",
-			Params: "int x, int y",
-			Args:   "x, y",
-			Return: "int",
-		}
 
-		sub := gnrtr.FuncType{
-			Name:   "sub",
-			Params: "int x, int y",
-			Args:   "x, y",
-			Return: "int",
-		}
+	headers = set.From(headers).Slice()
 
-		incr := gnrtr.FuncType{
-			Name:   "incr",
-			Params: "int *x",
-			Args:   "x",
-			Return: "VOID",
-		}
+	io.WriteString(f, `#pragma comment(lib, "onecore.lib")`)
+	io.WriteString(f, "\n")
 
-		decr := gnrtr.FuncType{
-			Name:   "decr",
-			Params: "(int *x)",
-			Args:   "(x)",
-			Return: "void",
-		}
+	io.WriteString(f, "#include <windows.h>\n")
+	for _, h := range headers {
+		io.WriteString(f, fmt.Sprintf("#include <%s>\n", h))
+	}
 
-		hooks := make([]gnrtr.FuncType, 5)
-		hooks[0] = msgBoxA
-		hooks[1] = add
-		hooks[2] = sub
-		hooks[3] = incr
-		hooks[4] = decr
+	io.WriteString(f, `#include "hook_utils.cpp"`)
 
-		// Generate hooks
-		hook, err := gnrtr.GenHook(hooks)
-		if err != nil {
-			fmt.Printf("%s\n", err)
-		} else {
-			fmt.Printf("%s\n", hook)
-		}
+	hook, err := gnrtr.GenHook(func_sigs)
+	if err != nil {
+		log.Fatalf("%s\n", err)
+	} else {
+		io.WriteString(f, fmt.Sprintf("%s\n", hook))
+	}
 
-		// Generate hook table
-		hook_table, err := gnrtr.GenHookTable(hooks)
-		if err != nil {
-			fmt.Printf("%s\n", err)
-		} else {
-			fmt.Printf("%s\n", hook_table)
-		}
+	// Generate hook table
+	hook_table, err := gnrtr.GenHookTable(func_sigs)
+	if err != nil {
+		log.Fatalf("%s\n", err)
+	} else {
+		io.WriteString(f, fmt.Sprintf("%s\n", hook_table))
 	}
 }
