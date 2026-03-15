@@ -1,5 +1,5 @@
 
-@table[Funcs]
+@table[Funcs](hello)
 {
 	@fields(name type_name args ret)
 	{Add                add_op_ft                  `int x, int y`         int}

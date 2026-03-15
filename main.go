@@ -20,6 +20,6 @@ func main() {
 	
 	// fmt.Printf("%s\n", content)
 
-	gen_commands := genc_fmt.ParseGenc(content)
-	fmt.Printf("%v\n", gen_commands)
+	genc_fmt.ParseGenc(content)
+	// fmt.Printf("%v\n", gen_commands)
 }
