@@ -68,7 +68,8 @@ func extractDirective(line string) Directive {
 
 
 func parseATable(lines []string, ln *int) Table {
-
+	for i := range() {
+	}
 }
 
 func ParseGenc(content []byte) {
