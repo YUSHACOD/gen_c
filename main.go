@@ -133,29 +133,27 @@ func main() {
 		}
 	}
 
-	f, err := os.OpenFile("generated/hooks.cpp", os.O_RDWR|os.O_CREATE, 0644)
-	if err != nil {
-		log.Fatal(err)
-	}
 
 
 	headers = set.From(headers).Slice()
 
-	io.WriteString(f, `#pragma comment(lib, "onecore.lib")`)
-	io.WriteString(f, "\n")
+	var sb  strings.Builder
 
-	io.WriteString(f, "#include <windows.h>\n")
+	sb.WriteString(`#pragma comment(lib, "onecore.lib")`)
+	sb.WriteString("\n")
+
+	sb.WriteString("#include <windows.h>\n")
 	for _, h := range headers {
-		io.WriteString(f, fmt.Sprintf("#include <%s>\n", h))
+		fmt.Fprintf(&sb, "#include <%s>\n", h)
 	}
 
-	io.WriteString(f, `#include "hook_utils.cpp"`)
+	sb.WriteString(`#include "hook_utils.cpp"`)
 
 	hook, err := gnrtr.GenHook(func_sigs)
 	if err != nil {
 		log.Fatalf("%s\n", err)
 	} else {
-		io.WriteString(f, fmt.Sprintf("%s\n", hook))
+		fmt.Fprintf(&sb, "%s\n", hook)
 	}
 
 	// Generate hook table
@@ -163,6 +161,12 @@ func main() {
 	if err != nil {
 		log.Fatalf("%s\n", err)
 	} else {
-		io.WriteString(f, fmt.Sprintf("%s\n", hook_table))
+		fmt.Fprintf(&sb, "%s\n", hook_table)
 	}
+
+	f, err := os.OpenFile("generated/hooks.cpp", os.O_RDWR|os.O_CREATE, 0644)
+	if err != nil {
+		log.Fatal(err)
+	}
+	io.WriteString(f, sb.String())
 }
