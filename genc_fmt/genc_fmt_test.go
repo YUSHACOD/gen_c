@@ -3,6 +3,7 @@ package genc_fmt_test
 import (
 	"fmt"
 	"testing"
+	"os"
 
 	"github.com/YUSHACOD/gen_c/genc_fmt"
 )
@@ -10,16 +11,12 @@ import (
 func Test(test *testing.T) {
 	fmt.Println("Testing")
 
-	input := `
-@table(Funcs) {
-	@fields(name type_name args ret)
-	{ Add                add_op_ft                  ` + "`" + `int x, int y` + "`" + `         int }
-	{ Sub                sub_op_ft                  ` + "`" + `int x, int y` + "`" + `         int }
-	{ Mul                mul_op_ft                  ` + "`" + `int x, int y` + "`" + `         int }
-}
-`
-	fmt.Println("Input :", input)
-	tokens := genc_fmt.Tokenize(input)
+	input, err := os.ReadFile("../template.genc")
+	if err != nil {
+		fmt.Printf("%v\n", err)
+		return
+	}
+	tokens := genc_fmt.Tokenize(string(input))
 	for _, t := range tokens {
 		t.Print()
 	}
