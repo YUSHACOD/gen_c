@@ -18,9 +18,7 @@ $rows =
 	$value_name = #concat(`FK_`, f.name)
 }
 
-@enum_to_string_table(FuncKindToString) {
-	$enum = FuncKind
-}
+@enum_to_string_table(FuncKindToString) { $enum = FuncKind }
 
 @func_types(OperationType) {
 	@requires(Funcs f)

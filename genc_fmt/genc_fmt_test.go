@@ -5,7 +5,7 @@ import (
 	"testing"
 	"os"
 
-	"github.com/YUSHACOD/gen_c/genc_fmt"
+	gf "github.com/YUSHACOD/gen_c/genc_fmt"
 )
 
 func Test(test *testing.T) {
@@ -13,11 +13,16 @@ func Test(test *testing.T) {
 
 	input, err := os.ReadFile("../template.genc")
 	if err != nil {
-		fmt.Printf("%v\n", err)
-		return
+		fmt.Println(err)
 	}
-	tokens := genc_fmt.Tokenize(string(input))
-	for _, t := range tokens {
-		t.Print()
+
+	fmt.Println(string(input))
+
+	t := gf.NewTokenizer(string(input))
+	for token := t.NextToken(); token.Typ != gf.Eof; token = t.NextToken() {
+		token.Print()
+		fmt.Println()
 	}
 }
+
+

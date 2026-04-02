@@ -2,6 +2,7 @@ package genc_fmt
 
 import (
 	"fmt"
+	"log"
 )
 
 // tokenizer : ---------------------------------------------------------------------- (section)  //
@@ -20,11 +21,12 @@ const (
 	FieldToken          TokenType = "FieldToken"
 	Operation           TokenType = "Operation"
 	Equals              TokenType = "Equals"
+	Eof                 TokenType = "Eof"
 )
 
 type Token struct {
-	typ TokenType
-	str string
+	Typ TokenType
+	Str string
 }
 
 type Tokenizer struct {
@@ -35,8 +37,8 @@ type Tokenizer struct {
 }
 
 func (t Token) Print() {
-	fmt.Println("Type: ", t.typ)
-	fmt.Println("Value: ", t.str)
+	fmt.Println("Type: ", t.Typ)
+	fmt.Println("Value: ", t.Str)
 }
 
 func NewTokenizer(input string) *Tokenizer {
@@ -62,154 +64,162 @@ func isValidIdentifierChar(ch byte) bool {
 		('0' <= ch && ch <= '9')
 }
 
-func Tokenize(input string) []Token {
-	t := NewTokenizer(input)
+func (t *Tokenizer) NextToken() Token {
 
-	tokens := make([]Token, 0)
+	token := Token{}
+	token.Typ = "EMPTY"
 
-	for ; t.ch != 0; t.readChar() {
+start:
+	switch {
 
-	process_new_char: // goto is required for clear tokenizing process
-
-		switch {
-
-		case t.ch == '@': // Primitives processor
-			{
-				primitive := Token{
-					typ: Primitive,
-				}
-
-				start := t.readPosition
-				for t.readChar(); isValidIdentifierChar(t.ch); t.readChar() {
-				}
-				end := t.position
-
-				primitive.str = t.input[start:end]
-				tokens = append(tokens, primitive)
-
-				goto process_new_char
+	case t.ch == '@': // Primitives processor
+		{
+			primitive := Token{
+				Typ: Primitive,
 			}
 
-		case t.ch == '$': // Field Identifier pprocessor
-			{
-				field := Token{
-					typ: FieldToken,
-				}
+			start := t.readPosition
+			for t.readChar(); isValidIdentifierChar(t.ch); t.readChar() {
+			}
+			end := t.position
 
-				start := t.readPosition
-				for t.readChar(); isValidIdentifierChar(t.ch); t.readChar() {
-				}
-				end := t.position
+			primitive.Str = t.input[start:end]
+			token = primitive
+		}
 
-				field.str = t.input[start:end]
-				tokens = append(tokens, field)
-
-				goto process_new_char
+	case t.ch == '$': // Field Identifier pprocessor
+		{
+			field := Token{
+				Typ: FieldToken,
 			}
 
-		case t.ch == '#': // Operation Identifier processor
-			{
-				operation := Token{
-					typ: Operation,
-				}
+			start := t.readPosition
+			for t.readChar(); isValidIdentifierChar(t.ch); t.readChar() {
+			}
+			end := t.position
 
-				start := t.readPosition
-				for t.readChar(); isValidIdentifierChar(t.ch); t.readChar() {
-				}
-				end := t.position
+			field.Str = t.input[start:end]
+			token = field
+		}
 
-				operation.str = t.input[start:end]
-				tokens = append(tokens, operation)
-
-				goto process_new_char
+	case t.ch == '#': // Operation Identifier processor
+		{
+			operation := Token{
+				Typ: Operation,
 			}
 
-		case t.ch == '`': // BacktickStringValue processor
-			{
-				bt_string := Token{
-					typ: BacktickStringValue,
-				}
+			start := t.readPosition
+			for t.readChar(); isValidIdentifierChar(t.ch); t.readChar() {
+			}
+			end := t.position
 
-				start := t.readPosition
-				for t.readChar(); t.ch != '`'; t.readChar() {
-				}
-				end := t.position
+			operation.Str = t.input[start:end]
+			token = operation
+		}
 
-				bt_string.str = t.input[start:end]
-				tokens = append(tokens, bt_string)
+	case t.ch == '`': // BacktickStringValue processor
+		{
+			bt_string := Token{
+				Typ: BacktickStringValue,
 			}
 
-		case t.ch == '(': // ParanOpen processor
-			{
-				tokens = append(tokens, Token{
-					typ: ParanOpen,
-				})
+			start := t.readPosition
+			for t.readChar(); t.ch != '`'; t.readChar() {
+			}
+			end := t.position
+
+			bt_string.Str = t.input[start:end]
+			token = bt_string
+
+			t.readChar()
+		}
+
+	case t.ch == '(': // ParanOpen processor
+		{
+			token = Token{
+				Typ: ParanOpen,
+			}
+			t.readChar()
+		}
+
+	case t.ch == ')': // ParanClose processor
+		{
+			token = Token{
+				Typ: ParanClose,
+			}
+			t.readChar()
+		}
+
+	case t.ch == '{': // BraceOpen processor
+		{
+			token = Token{
+				Typ: BraceOpen,
+			}
+			t.readChar()
+		}
+
+	case t.ch == '}': // BraceClose processor
+		{
+			token = Token{
+				Typ: BraceClose,
+			}
+			t.readChar()
+		}
+
+	case t.ch == '.': // FieldPoint processor
+		{
+			token = Token{
+				Typ: FieldPoint,
+			}
+			t.readChar()
+		}
+
+	case t.ch == ',': // CommaSeperator processor
+		{
+			token = Token{
+				Typ: CommaSeperator,
+			}
+			t.readChar()
+		}
+
+	case t.ch == '=': // Equals processor
+		{
+			token = Token{
+				Typ: Equals,
+			}
+			t.readChar()
+		}
+
+	case isValidIdentifierChar(t.ch): // NormalStringValue Processor
+		{
+			normal_value := Token{
+				Typ: NormalStringValue,
 			}
 
-		case t.ch == ')': // ParanClose processor
-			{
-				tokens = append(tokens, Token{
-					typ: ParanClose,
-				})
+			start := t.position
+			for t.readChar(); isValidIdentifierChar(t.ch); t.readChar() {
 			}
+			end := t.position
 
-		case t.ch == '{': // BraceOpen processor
-			{
-				tokens = append(tokens, Token{
-					typ: BraceOpen,
-				})
+			normal_value.Str = t.input[start:end]
+			token = normal_value
+		}
+
+	case t.ch == 0:
+		{
+			token = Token{
+				Typ: Eof,
 			}
-
-		case t.ch == '}': // BraceClose processor
-			{
-				tokens = append(tokens, Token{
-					typ: BraceClose,
-				})
-			}
-
-		case t.ch == '.': // FieldPoint processor
-			{
-				tokens = append(tokens, Token{
-					typ: FieldPoint,
-				})
-			}
-
-		case t.ch == ',': // CommaSeperator processor
-			{
-				tokens = append(tokens, Token{
-					typ: CommaSeperator,
-				})
-			}
-
-		case t.ch == '=': // Equals processor
-			{
-				tokens = append(tokens, Token{
-					typ: Equals,
-				})
-			}
-
-		case isValidIdentifierChar(t.ch): // NormalStringValue Processor
-			{
-				normal_value := Token{
-					typ: NormalStringValue,
-				}
-
-				start := t.position
-				for t.readChar(); isValidIdentifierChar(t.ch); t.readChar() {
-				}
-				end := t.position
-
-				normal_value.str = t.input[start:end]
-				tokens = append(tokens, normal_value)
-
-				goto process_new_char
-			}
-
 		}
 
 	}
 
-	return tokens
+	if token.Typ == "EMPTY" {
+		t.readChar()
+		goto start
+	}
+
+	return token
 }
 
 //  (section) ---------------------------------------------------------------------- : tokenizer  //
@@ -266,6 +276,9 @@ const (
 	// an Array of Expressions
 	Array ExpressionType = "array"
 
+	// an Table col identifier with alias
+	ColId ExpressionType = "col_id"
+
 	// an Expression generated by operation
 	Op_Concat       ExpressionType = "op_concat"
 	Op_Uppercase    ExpressionType = "op_uppercase"
@@ -285,8 +298,8 @@ type Expression struct {
 }
 
 type Field struct {
-	typ         FieldType
-	expressions []Expression
+	typ FieldType
+	val Expression
 }
 
 type SubPrimitives struct {
@@ -302,6 +315,153 @@ type Primitives struct {
 
 type GenC struct {
 	primitives map[string]Primitives
+}
+
+func (e *Expression) Print() {
+	fmt.Print("Expression: ")
+	switch e.typ {
+
+	case Value:
+		fmt.Println(e.value)
+
+	case Array:
+		fmt.Print("Array: [")
+		for _, arr_elem := range e.arr {
+			arr_elem.Print()
+			fmt.Println()
+		}
+		fmt.Println("]")
+
+	case ColId:
+		fmt.Print("Alias Id: ")
+		e.arr[0].Print()
+		fmt.Print("Col Id: ")
+		e.arr[1].Print()
+
+	case Op_Concat:
+		fmt.Printf("Concat: \n1 :")
+		e.arr[0].Print()
+		fmt.Printf("2 : ")
+		e.arr[1].Print()
+
+	case Op_Uppercase:
+		fmt.Printf("Uppercase: \n1 :")
+		e.arr[0].Print()
+		fmt.Printf("2 : ")
+		e.arr[1].Print()
+
+	case Op_Lowercase:
+		fmt.Printf("Lowercase: \n1 :")
+		e.arr[0].Print()
+		fmt.Printf("2 : ")
+		e.arr[1].Print()
+
+	case Op_Snake2Pascal:
+		fmt.Printf("Snake2Pascal: \n1 :")
+		e.arr[0].Print()
+		fmt.Printf("2 : ")
+		e.arr[1].Print()
+
+	case Op_Snake2Camel:
+		fmt.Printf("Snake2Camel: \n1 :")
+		e.arr[0].Print()
+		fmt.Printf("2 : ")
+		e.arr[1].Print()
+
+	case Op_Pascal2Snake:
+		fmt.Printf("Pascal2Snake: \n1 :")
+		e.arr[0].Print()
+		fmt.Printf("2 : ")
+		e.arr[1].Print()
+
+	case Op_Pascal2Camel:
+		fmt.Printf("Pascal2Camel: \n1 :")
+		e.arr[0].Print()
+		fmt.Printf("2 : ")
+		e.arr[1].Print()
+
+	case Op_Camel2Snake:
+		fmt.Printf("Camel2Snake: \n1 :")
+		e.arr[0].Print()
+		fmt.Printf("2 : ")
+		e.arr[1].Print()
+
+	case Op_Camel2Pascal:
+		fmt.Printf("Camel2Pascal: \n1 :")
+		e.arr[0].Print()
+		fmt.Printf("2 : ")
+		e.arr[1].Print()
+
+	}
+}
+
+func (f *Field) Print() {
+	fmt.Println("Type: ", f.typ)
+	fmt.Print("Value: ")
+	f.val.Print()
+}
+
+func (s *SubPrimitives) Print() {
+	fmt.Println("Type: ", s.typ)
+	for _, exp := range s.args {
+		exp.Print()
+	}
+}
+
+func (p *Primitives) Print() {
+	fmt.Println("Type: ", p.typ)
+	fmt.Println("SubPrimitves:")
+	for _, sp := range p.sub_prims {
+		sp.Print()
+	}
+	fmt.Println("Fields:")
+	for _, field := range p.fields {
+		field.Print()
+	}
+}
+
+func ParseGenc(t *Tokenizer) {
+	token := t.NextToken()
+	if token.Typ != Primitive {
+		log.Fatalf("First Token Found should be primitive check the formating of file")
+	}
+
+	switch PrimitiveType(token.Str) {
+	case Table:
+		{
+
+		}
+
+	case Enum:
+		{
+
+		}
+
+	case Enum2String:
+		{
+
+		}
+
+	case FuncTypes:
+		{
+
+		}
+
+	case FuncGlobals:
+		{
+
+		}
+
+	case Custom:
+		{
+
+		}
+
+	default:
+		{
+			log.Fatalf("Invalid Primitive type: %s", token.Str)
+		}
+	}
 }
 
 //  (section) ------------------------------------------------------------------------- : parser  //
