@@ -1,5 +1,5 @@
 
-@table(Funcs) {
+@table{Funcs) {
 
 $cols = {name type_name args ret}
 

@@ -16,13 +16,14 @@ func Test(test *testing.T) {
 		fmt.Println(err)
 	}
 
-	fmt.Println(string(input))
+	// fmt.Println(string(input))
 
 	t := gf.NewTokenizer(string(input))
-	for token := t.NextToken(); token.Typ != gf.Eof; token = t.NextToken() {
-		token.Print()
-		fmt.Println()
-	}
+	gf.ParseGenc(t)
+	// for token := t.NextToken(); token.Typ != gf.Eof; token = t.NextToken() {
+	// 	token.Print()
+	// 	fmt.Println()
+	// }
 }
 
 
