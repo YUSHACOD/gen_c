@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log"
 	"strings"
+
+	"github.com/xlab/treeprint"
 )
 
 // tokenizer : ---------------------------------------------------------------------- (section)  //
@@ -20,7 +22,7 @@ const (
 	BacktickStringValue TokenType = "BacktickStringValue"
 	NormalStringValue   TokenType = "NormalStringValue"
 	CommaSeperator      TokenType = "CommaSeperator"
-	FieldToken          TokenType = "FieldToken"
+	FieldID             TokenType = "FieldID"
 	Operation           TokenType = "Operation"
 	Equals              TokenType = "Equals"
 	Eof                 TokenType = "Eof"
@@ -107,7 +109,7 @@ start:
 	case t.ch == '$': // Field Identifier pprocessor
 		{
 			field := Token{
-				Typ:  FieldToken,
+				Typ:  FieldID,
 				line: t.line,
 				col:  t.col,
 			}
@@ -292,6 +294,7 @@ const (
 
 	// Table Fields
 	Table_Cols FieldType = FieldType((Table) + "_" + "cols")
+	Table_Rows FieldType = FieldType((Table) + "_" + "rows")
 
 	// Enum Fields
 	Enum_ValueName FieldType = FieldType((Enum) + "_" + "value_name")
@@ -362,117 +365,102 @@ type Primitives struct {
 }
 
 type GenC struct {
-	primitives map[string]Primitives
+	Primitives map[string]Primitives
 }
 
 //  (section) ------------------------------------------------------------ : ast element structs  //
 
-// asl element print helpers : ------------------------------------------------------ (section)  //
-func (e *Expression) Print() {
+// ast element print helpers : ------------------------------------------------------ (section)  //
 
-	fmt.Print("Expression: ")
+var opNames = map[ExpressionType]string{
+	Op_Concat:       "Concat",
+	Op_Uppercase:    "Uppercase",
+	Op_Lowercase:    "Lowercase",
+	Op_Snake2Pascal: "Snake2Pascal",
+	Op_Snake2Camel:  "Snake2Camel",
+	Op_Pascal2Snake: "Pascal2Snake",
+	Op_Pascal2Camel: "Pascal2Camel",
+	Op_Camel2Snake:  "Camel2Snake",
+	Op_Camel2Pascal: "Camel2Pascal",
+}
+
+func (e *Expression) addToTree(branch treeprint.Tree) {
 	switch e.typ {
 
 	case Value:
-		fmt.Println(e.value)
+		branch.AddNode(fmt.Sprintf("Value: %v", e.value))
 
 	case Array:
-		fmt.Print("Array: [")
-		for _, arr_elem := range e.arr {
-			arr_elem.Print()
-			fmt.Println()
+		b := branch.AddBranch("Array")
+		for _, elem := range e.arr {
+			elem.addToTree(b)
 		}
-		fmt.Println("]")
 
 	case ColId:
-		fmt.Print("Alias Id: ")
-		e.arr[0].Print()
-		fmt.Print("Col Id: ")
-		e.arr[1].Print()
+		b := branch.AddBranch("ColId")
+		e.arr[0].addToTree(b.AddBranch("Alias Id"))
+		e.arr[1].addToTree(b.AddBranch("Col Id"))
 
-	case Op_Concat:
-		fmt.Printf("Concat: \n1 :")
-		e.arr[0].Print()
-		fmt.Printf("2 : ")
-		e.arr[1].Print()
-
-	case Op_Uppercase:
-		fmt.Printf("Uppercase: \n1 :")
-		e.arr[0].Print()
-		fmt.Printf("2 : ")
-		e.arr[1].Print()
-
-	case Op_Lowercase:
-		fmt.Printf("Lowercase: \n1 :")
-		e.arr[0].Print()
-		fmt.Printf("2 : ")
-		e.arr[1].Print()
-
-	case Op_Snake2Pascal:
-		fmt.Printf("Snake2Pascal: \n1 :")
-		e.arr[0].Print()
-		fmt.Printf("2 : ")
-		e.arr[1].Print()
-
-	case Op_Snake2Camel:
-		fmt.Printf("Snake2Camel: \n1 :")
-		e.arr[0].Print()
-		fmt.Printf("2 : ")
-		e.arr[1].Print()
-
-	case Op_Pascal2Snake:
-		fmt.Printf("Pascal2Snake: \n1 :")
-		e.arr[0].Print()
-		fmt.Printf("2 : ")
-		e.arr[1].Print()
-
-	case Op_Pascal2Camel:
-		fmt.Printf("Pascal2Camel: \n1 :")
-		e.arr[0].Print()
-		fmt.Printf("2 : ")
-		e.arr[1].Print()
-
-	case Op_Camel2Snake:
-		fmt.Printf("Camel2Snake: \n1 :")
-		e.arr[0].Print()
-		fmt.Printf("2 : ")
-		e.arr[1].Print()
-
-	case Op_Camel2Pascal:
-		fmt.Printf("Camel2Pascal: \n1 :")
-		e.arr[0].Print()
-		fmt.Printf("2 : ")
-		e.arr[1].Print()
-
+	default:
+		if name, ok := opNames[e.typ]; ok {
+			b := branch.AddBranch(name)
+			e.arr[0].addToTree(b.AddBranch("1"))
+			e.arr[1].addToTree(b.AddBranch("2"))
+		}
 	}
 }
 
+func (e *Expression) Print() {
+	tree := treeprint.New()
+	e.addToTree(tree.AddBranch("Expression"))
+	fmt.Println(tree)
+}
+
+func (f *Field) addToTree(branch treeprint.Tree) {
+	b := branch.AddBranch(fmt.Sprintf("Field: %v", f.typ))
+	f.val.addToTree(b.AddBranch("Value"))
+}
+
 func (f *Field) Print() {
-	fmt.Println("Type: ", f.typ)
-	fmt.Print("Value: ")
-	f.val.Print()
+	tree := treeprint.New()
+	f.addToTree(tree)
+	fmt.Println(tree)
+}
+
+func (s *SubPrimitives) addToTree(branch treeprint.Tree) {
+	b := branch.AddBranch(fmt.Sprintf("SubPrimitives: %v", s.typ))
+	for _, exp := range s.args {
+		exp.addToTree(b)
+	}
 }
 
 func (s *SubPrimitives) Print() {
-	fmt.Println("Type: ", s.typ)
-	for _, exp := range s.args {
-		exp.Print()
+	tree := treeprint.New()
+	s.addToTree(tree)
+	fmt.Println(tree)
+}
+
+func (p *Primitives) addToTree(branch treeprint.Tree) {
+	b := branch.AddBranch(fmt.Sprintf("Primitives: %v", p.typ))
+
+	subs := b.AddBranch("SubPrimitives")
+	for _, sp := range p.sub_prims {
+		sp.addToTree(subs)
+	}
+
+	fields := b.AddBranch("Fields")
+	for _, field := range p.fields {
+		field.addToTree(fields)
 	}
 }
 
 func (p *Primitives) Print() {
-	fmt.Println("Type: ", p.typ)
-	fmt.Println("SubPrimitves:")
-	for _, sp := range p.sub_prims {
-		sp.Print()
-	}
-	fmt.Println("Fields:")
-	for _, field := range p.fields {
-		field.Print()
-	}
+	tree := treeprint.New()
+	p.addToTree(tree)
+	fmt.Println(tree)
 }
 
-//  (section) ------------------------------------------------------ : asl element print helpers  //
+//  (section) ------------------------------------------------------ : ast element print helpers  //
 
 //  parser proper : ------------------------------------------------------------------ (section)  //
 
@@ -527,19 +515,17 @@ func printParseError(t *Tokenizer, tok Token, error_string string) {
 	}
 }
 
-func (p *Parser) Errorf(token Token, fmt_string string, a ...any) {
-	error_string := fmt.Sprintf(fmt_string, a...)
-	printParseError(p.t, token, error_string)
+func (p *Parser) Errorf(fmt_string string, a ...any) {
+	error_string := fmt.Sprintf(fmt_string, a...) + fmt.Sprintf("%v", p.currToken)
+	printParseError(p.t, p.currToken, error_string)
+	fmt.Println()
 }
 
 //  (section) ------------------------------------------------------------------ : error helpers  //
 
-func (p *Parser) parseTable() (string, Primitives) {
-	//  table parsing : -------------------------------------------------------------- (section)  //
+func (p *Parser) parsePrimitiveId() string {
 
-	var id string
-	var table Primitives
-
+	id := ""
 	p.nextToken()
 	if p.currToken.Typ == ParanOpen {
 
@@ -547,14 +533,146 @@ func (p *Parser) parseTable() (string, Primitives) {
 		if p.currToken.Typ == NormalStringValue {
 
 			id = p.currToken.Str
-			p.Errorf(p.currToken, "hello: %d", 1)
-			p.nextToken()
 
+			p.nextToken()
+			if p.currToken.Typ != ParanClose {
+				p.Errorf("Field parantheses is not closed")
+			}
 		} else {
-			p.Errorf(p.currToken, "No id specified for the table ?")
+			p.Errorf("No id specified for the table ?")
 		}
 	} else {
-		p.Errorf(p.currToken, "No id specifier parantheses opened")
+		p.Errorf("No id specifier parantheses opened")
+	}
+
+	return id
+}
+
+func (p *Parser) parseExpression(exp *Expression) {
+
+	p.nextToken()
+	switch p.currToken.Typ {
+
+	case BraceOpen:
+		exp.typ = Array
+		for ; p.currToken.Typ != BraceClose; {
+			var array_exp Expression
+			p.parseExpression(&array_exp)
+			exp.arr = append(exp.arr, array_exp)
+		}
+		if p.currToken.Typ != BraceClose {
+			p.Errorf("Array brace not close here")
+		}
+		p.nextToken()
+		p.currToken.Print()
+
+	case BacktickStringValue:
+		exp.typ = Value
+		exp.value = p.currToken.Str
+
+	case NormalStringValue:
+		exp.value = p.currToken.Str
+		if p.peekToken.Typ == FieldPoint {
+			p.nextToken()
+			exp.typ = ColId
+			exp.arr = append(exp.arr, Expression{
+				typ:   ExpressionType(NormalStringValue),
+				value: p.currToken.Str,
+			})
+		} else {
+			exp.typ = Value
+		}
+
+	case TokenType(Op_Concat):
+
+	case TokenType(Op_Uppercase):
+
+	case TokenType(Op_Lowercase):
+
+	case TokenType(Op_Snake2Pascal):
+
+	case TokenType(Op_Snake2Camel):
+
+	case TokenType(Op_Pascal2Snake):
+
+	case TokenType(Op_Pascal2Camel):
+
+	case TokenType(Op_Camel2Snake):
+
+	case TokenType(Op_Camel2Pascal):
+
+	default:
+		p.Errorf("This is token cannot start a expression")
+	}
+
+}
+
+func (p *Parser) parseTable() (string, Primitives) {
+
+	//  table parsing : -------------------------------------------------------------- (section)  //
+	var id string
+	var table Primitives
+	table.typ = Table
+
+	id = p.parsePrimitiveId()
+	fmt.Println("Parsed Id: ", id)
+
+	p.nextToken()
+	if p.currToken.Typ == BraceOpen {
+
+		for range 2 {
+			p.nextToken()
+
+			var field_type FieldType
+			var field_val Expression
+
+			if p.currToken.Typ == FieldID {
+
+				switch FieldType(Table + "_" + PrimitiveType(p.currToken.Str)) {
+
+				case Table_Cols:
+					{
+
+						field_type = Table_Cols
+
+						p.nextToken()
+						if p.currToken.Typ == Equals {
+							p.parseExpression(&field_val)
+						} else {
+							p.Errorf(
+								"The Field is followed by a equals sign followed by the expression")
+						}
+					}
+
+				case Table_Rows:
+					{
+						field_type = Table_Rows
+
+						p.nextToken()
+						if p.currToken.Typ == Equals {
+							p.parseExpression(&field_val)
+						} else {
+							p.Errorf(
+								"The Field is followed by a equals sign followed by the expression")
+						}
+					}
+
+				default:
+					p.Errorf("Expected a table field")
+				}
+
+			} else {
+				p.Errorf("This should've been a feild instead of whatever")
+			}
+
+			table.fields = append(table.fields, Field{
+				typ: field_type,
+				val: field_val,
+			})
+		}
+
+	} else {
+		p.Errorf("No brace open for primtive definition scope")
 	}
 
 	return id, table
@@ -564,7 +682,7 @@ func ParseGenc(t *Tokenizer) *GenC {
 
 	p := NewParser(t)
 	prmitives := make(map[string]Primitives)
-	genc := &GenC{primitives: prmitives}
+	genc := &GenC{Primitives: prmitives}
 
 	if p.currToken.Typ != Primitive {
 		log.Fatalf("First Token Found should be primitive check the formating of file")
@@ -576,7 +694,7 @@ func ParseGenc(t *Tokenizer) *GenC {
 	case Table:
 		{
 			id, table := p.parseTable()
-			genc.primitives[id] = table
+			genc.Primitives[id] = table
 		}
 
 	case Enum:
