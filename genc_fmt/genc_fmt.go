@@ -3,7 +3,7 @@ package genc_fmt
 import (
 	"fmt"
 	"log"
-	"os"
+	// "os"
 	"strings"
 
 	"github.com/xlab/treeprint"
@@ -277,7 +277,7 @@ const (
 	Enum        PrimitiveType = "enum"
 	Enum2String PrimitiveType = "enum_to_string_table"
 	FuncTypes   PrimitiveType = "func_types"
-	FuncGlobals PrimitiveType = "func_global"
+	FuncGlobals PrimitiveType = "func_globals"
 	Custom      PrimitiveType = "custom"
 )
 
@@ -532,7 +532,8 @@ func printParseError(t *Tokenizer, tok Token, error_string string) {
 func (p *Parser) Errorf(fmt_string string, a ...any) {
 	error_string := fmt.Sprintf(fmt_string, a...) + fmt.Sprintf("%v", p.currToken)
 	printParseError(p.t, p.currToken, error_string)
-	os.Exit(1)
+	// os.Exit(1)
+	panic(1)
 }
 
 //  (section) ------------------------------------------------------------------ : error helpers  //
@@ -587,11 +588,10 @@ func (p *Parser) parseExpression(exp *Expression) {
 	case NormalStringValue:
 		exp.value = p.currToken.Str
 		if p.peekToken.Typ == FieldPoint {
-			p.nextToken()
-			p.nextToken()
-			fmt.Print(Yellow)
-			p.currToken.Print()
-			fmt.Print(Reset)
+
+			p.nextToken() // setting curr token to field point
+			p.nextToken() // skipping the field point token
+
 			exp.typ = ColId
 			exp.arr = append(exp.arr, Expression{
 				typ:   Value,
@@ -629,20 +629,140 @@ func (p *Parser) parseExpression(exp *Expression) {
 			}
 
 		case Op_Uppercase:
+			exp.typ = Op_Uppercase
+			p.nextToken()
+			if p.currToken.Typ == ParanOpen {
+
+				var arg Expression
+				p.parseExpression(&arg)
+				exp.arr = append(exp.arr, arg)
+
+				p.nextToken()
+				if p.currToken.Typ != ParanClose {
+					p.Errorf("this operation takes only one expression close the scope with ')'")
+				}
+			} else {
+				p.Errorf("Expected a start of operations args scope with '('")
+			}
 
 		case Op_Lowercase:
+			exp.typ = Op_Lowercase
+			p.nextToken()
+			if p.currToken.Typ == ParanOpen {
+
+				var arg Expression
+				p.parseExpression(&arg)
+				exp.arr = append(exp.arr, arg)
+
+				p.nextToken()
+				if p.currToken.Typ != ParanClose {
+					p.Errorf("this operation takes only one expression close the scope with ')'")
+				}
+			} else {
+				p.Errorf("Expected a start of operations args scope with '('")
+			}
 
 		case Op_Snake2Pascal:
+			exp.typ = Op_Snake2Pascal
+			p.nextToken()
+			if p.currToken.Typ == ParanOpen {
+
+				var arg Expression
+				p.parseExpression(&arg)
+				exp.arr = append(exp.arr, arg)
+
+				p.nextToken()
+				if p.currToken.Typ != ParanClose {
+					p.Errorf("this operation takes only one expression close the scope with ')'")
+				}
+			} else {
+				p.Errorf("Expected a start of operations args scope with '('")
+			}
 
 		case Op_Snake2Camel:
+			exp.typ = Op_Snake2Camel
+			p.nextToken()
+			if p.currToken.Typ == ParanOpen {
+
+				var arg Expression
+				p.parseExpression(&arg)
+				exp.arr = append(exp.arr, arg)
+
+				p.nextToken()
+				if p.currToken.Typ != ParanClose {
+					p.Errorf("this operation takes only one expression close the scope with ')'")
+				}
+			} else {
+				p.Errorf("Expected a start of operations args scope with '('")
+			}
 
 		case Op_Pascal2Snake:
+			exp.typ = Op_Pascal2Snake
+			p.nextToken()
+			if p.currToken.Typ == ParanOpen {
+
+				var arg Expression
+				p.parseExpression(&arg)
+				exp.arr = append(exp.arr, arg)
+
+				p.nextToken()
+				if p.currToken.Typ != ParanClose {
+					p.Errorf("this operation takes only one expression close the scope with ')'")
+				}
+			} else {
+				p.Errorf("Expected a start of operations args scope with '('")
+			}
 
 		case Op_Pascal2Camel:
+			exp.typ = Op_Pascal2Camel
+			p.nextToken()
+			if p.currToken.Typ == ParanOpen {
+
+				var arg Expression
+				p.parseExpression(&arg)
+				exp.arr = append(exp.arr, arg)
+
+				p.nextToken()
+				if p.currToken.Typ != ParanClose {
+					p.Errorf("this operation takes only one expression close the scope with ')'")
+				}
+			} else {
+				p.Errorf("Expected a start of operations args scope with '('")
+			}
 
 		case Op_Camel2Snake:
+			exp.typ = Op_Camel2Snake
+			p.nextToken()
+			if p.currToken.Typ == ParanOpen {
+
+				var arg Expression
+				p.parseExpression(&arg)
+				exp.arr = append(exp.arr, arg)
+
+				p.nextToken()
+				if p.currToken.Typ != ParanClose {
+					p.Errorf("this operation takes only one expression close the scope with ')'")
+				}
+			} else {
+				p.Errorf("Expected a start of operations args scope with '('")
+			}
 
 		case Op_Camel2Pascal:
+			exp.typ = Op_Camel2Pascal
+			p.nextToken()
+			if p.currToken.Typ == ParanOpen {
+
+				var arg Expression
+				p.parseExpression(&arg)
+				exp.arr = append(exp.arr, arg)
+
+				p.nextToken()
+				if p.currToken.Typ != ParanClose {
+					p.Errorf("this operation takes only one expression close the scope with ')'")
+				}
+			} else {
+				p.Errorf("Expected a start of operations args scope with '('")
+			}
 
 		default:
 			p.Errorf("Not a valid Expression")
@@ -731,6 +851,8 @@ func (p *Parser) parseTable() (string, Primitives) {
 }
 
 func (p *Parser) parseRequires() SubPrimitives {
+
+	//  requires parsing : ----------------------------------------------------------- (section)  //
 	var requires SubPrimitives
 
 	p.nextToken()
@@ -764,6 +886,7 @@ func (p *Parser) parseRequires() SubPrimitives {
 				}
 
 			case CommaSeperator:
+				continue
 
 			default:
 				p.Errorf("This token is invalid for an alias element in Requires sub prim")
@@ -841,6 +964,323 @@ func (p *Parser) parseEnum() (string, Primitives) {
 	return id, enum
 }
 
+func (p *Parser) parseEnumToString() (string, Primitives) {
+	var id string
+	var enum_to_string Primitives
+
+	enum_to_string.typ = Enum
+
+	id = p.parsePrimitiveId()
+	fmt.Println("Parsed Id: ", id)
+
+	p.nextToken()
+	if p.currToken.Typ == BraceOpen {
+		p.nextToken()
+		if p.currToken.Typ == FieldID {
+			if FieldType(Enum2String)+"_"+FieldType(p.currToken.Str) == Enum2String_Enum {
+				var value_name_field Field
+				value_name_field.typ = Enum_ValueName
+
+				p.nextToken()
+				if p.currToken.Typ == Equals {
+					p.parseExpression(&value_name_field.val)
+
+				} else {
+					p.Errorf(
+						"The Field is followed by a equals sign followed by the expression")
+				}
+
+				enum_to_string.fields = append(enum_to_string.fields, value_name_field)
+			} else {
+				p.Errorf("Expected to be a value name field for enum")
+			}
+		} else {
+			p.Errorf("This is expeceted to be a enum field")
+		}
+	} else {
+		p.Errorf("No brace open for primtive definition scope")
+	}
+
+	p.nextToken()
+	if p.currToken.Typ != BraceClose {
+		p.Errorf("enum definition scope not closed properly")
+	}
+
+	return id, enum_to_string
+}
+
+func (p *Parser) parseFuncTypes() (string, Primitives) {
+
+	var id string
+	var func_types Primitives
+
+	func_types.typ = Enum
+
+	id = p.parsePrimitiveId()
+	fmt.Println("Parsed Id: ", id)
+
+	p.nextToken()
+	if p.currToken.Typ == BraceOpen {
+		p.nextToken()
+		if p.currToken.Typ == Primitive {
+			if p.currToken.Str == string(Requires) {
+
+				func_types.sub_prims = append(func_types.sub_prims, p.parseRequires())
+
+			} else {
+				p.Errorf("Wrong sub prim type, expected requires")
+			}
+		} else {
+			p.Errorf("There should be a requires sub prim here")
+		}
+
+	} else {
+		p.Errorf("No brace open for primtive definition scope")
+	}
+
+	for range 3 {
+
+		p.nextToken()
+
+		var field_type FieldType
+		var field_val Expression
+
+		if p.currToken.Typ == FieldID {
+
+			switch FieldType(FuncTypes) + "_" + FieldType(p.currToken.Str) {
+			case FuncTypes_Identifier:
+				{
+					field_type = FuncTypes_Identifier
+
+					p.nextToken()
+					if p.currToken.Typ == Equals {
+						p.parseExpression(&field_val)
+
+					} else {
+						p.Errorf(
+							"The Field is followed by a equals sign followed by the expression")
+					}
+				}
+
+			case FuncTypes_Args:
+				{
+					field_type = FuncTypes_Args
+
+					p.nextToken()
+					if p.currToken.Typ == Equals {
+						p.parseExpression(&field_val)
+
+					} else {
+						p.Errorf(
+							"The Field is followed by a equals sign followed by the expression")
+					}
+				}
+
+			case FuncTypes_Ret:
+				{
+					field_type = FuncTypes_Ret
+
+					p.nextToken()
+					if p.currToken.Typ == Equals {
+						p.parseExpression(&field_val)
+
+					} else {
+						p.Errorf(
+							"The Field is followed by a equals sign followed by the expression")
+					}
+				}
+
+			default:
+				p.Errorf("Expected to be a value name field for func type")
+			}
+
+		} else {
+			p.Errorf("This is expeceted to be a func type field")
+		}
+
+		func_types.fields = append(func_types.fields, Field{
+			typ: field_type,
+			val: field_val,
+		})
+
+	}
+
+	p.nextToken()
+	if p.currToken.Typ != BraceClose {
+		p.Errorf("Func Types definition scope not closed properly")
+	}
+
+	return id, func_types
+}
+
+func (p *Parser) parseFuncGlobals() (string, Primitives) {
+
+	var id string
+	var func_globals Primitives
+
+	func_globals.typ = Enum
+
+	id = p.parsePrimitiveId()
+	fmt.Println("Parsed Id: ", id)
+
+	p.nextToken()
+	if p.currToken.Typ == BraceOpen {
+		p.nextToken()
+		if p.currToken.Typ == Primitive {
+			if p.currToken.Str == string(Requires) {
+
+				func_globals.sub_prims = append(func_globals.sub_prims, p.parseRequires())
+
+			} else {
+				p.Errorf("Wrong sub prim type, expected requires")
+			}
+		} else {
+			p.Errorf("There should be a requires sub prim here")
+		}
+
+	} else {
+		p.Errorf("No brace open for primtive definition scope")
+	}
+
+	for range 2 {
+
+		p.nextToken()
+
+		var field_type FieldType
+		var field_val Expression
+
+		if p.currToken.Typ == FieldID {
+
+			switch FieldType(FuncGlobals) + "_" + FieldType(p.currToken.Str) {
+
+			case FuncGlobals_Identifier:
+				{
+					field_type = FuncGlobals_Identifier
+
+					p.nextToken()
+					if p.currToken.Typ == Equals {
+						p.parseExpression(&field_val)
+
+					} else {
+						p.Errorf(
+							"The Field is followed by a equals sign followed by the expression")
+					}
+				}
+
+			case FuncGlobals_Type:
+				{
+					field_type = FuncGlobals_Type
+
+					p.nextToken()
+					if p.currToken.Typ == Equals {
+						p.parseExpression(&field_val)
+
+					} else {
+						p.Errorf(
+							"The Field is followed by a equals sign followed by the expression")
+					}
+				}
+
+			default:
+				p.Errorf("Expected to be a value name field for func globals")
+			}
+
+		} else {
+			p.Errorf("This is expeceted to be a func globals field")
+		}
+
+		func_globals.fields = append(func_globals.fields, Field{
+			typ: field_type,
+			val: field_val,
+		})
+
+	}
+
+	p.nextToken()
+	if p.currToken.Typ != BraceClose {
+		p.Errorf("Func Types definition scope not closed properly")
+	}
+
+	return id, func_globals
+}
+
+func (p *Parser) parseCustom() (string, Primitives) {
+
+	var id string
+	var custom Primitives
+
+	custom.typ = Enum
+
+	id = p.parsePrimitiveId()
+	fmt.Println("Parsed Id: ", id)
+
+	p.nextToken()
+	if p.currToken.Typ == BraceOpen {
+		p.nextToken()
+		if p.currToken.Typ == Primitive {
+			if p.currToken.Str == string(Requires) {
+
+				custom.sub_prims = append(custom.sub_prims, p.parseRequires())
+
+			} else {
+				p.Errorf("Wrong sub prim type, expected requires")
+			}
+		} else {
+			p.Errorf("There should be a requires sub prim here")
+		}
+
+	} else {
+		p.Errorf("No brace open for primtive definition scope")
+	}
+
+	for range 1 {
+
+		p.nextToken()
+
+		var field_type FieldType
+		var field_val Expression
+
+		if p.currToken.Typ == FieldID {
+
+			switch FieldType(Custom) + "_" + FieldType(p.currToken.Str) {
+
+			case Custom_Template:
+				{
+					field_type = Custom_Template
+
+					p.nextToken()
+					if p.currToken.Typ == Equals {
+						p.parseExpression(&field_val)
+
+					} else {
+						p.Errorf(
+							"The Field is followed by a equals sign followed by the expression")
+					}
+				}
+
+			default:
+				p.Errorf("Expected to be a field for custom")
+			}
+
+		} else {
+			p.Errorf("This is expeceted to be a custom prim field")
+		}
+
+		custom.fields = append(custom.fields, Field{
+			typ: field_type,
+			val: field_val,
+		})
+
+	}
+
+	p.nextToken()
+	if p.currToken.Typ != BraceClose {
+		p.Errorf("Func Types definition scope not closed properly")
+	}
+
+	return id, custom
+}
+
 func ParseGenc(t *Tokenizer) *GenC {
 
 	p := NewParser(t)
@@ -870,21 +1310,26 @@ func ParseGenc(t *Tokenizer) *GenC {
 
 		case Enum2String:
 			{
-
+				id, enum_to_string := p.parseEnumToString()
+				genc.Primitives[id] = enum_to_string
 			}
 
 		case FuncTypes:
 			{
-
+				id, func_types := p.parseFuncTypes()
+				genc.Primitives[id] = func_types
 			}
 
 		case FuncGlobals:
 			{
-
+				id, func_globals := p.parseFuncGlobals()
+				genc.Primitives[id] = func_globals
 			}
 
 		case Custom:
 			{
+				id, custom := p.parseCustom()
+				genc.Primitives[id] = custom
 
 			}
 

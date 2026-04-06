@@ -23,13 +23,13 @@ $rows =
 @func_types(OperationType) {
     @requires(Funcs f)
 
-    $identifier = f.name
-    $args       = f.args
-    $ret        = f.ret
+    $identifier = #uppercase(f.name)
+    $args       = #lowercase(f.args)
+    $ret        = #snake2pascal(f.ret)
 }
 
 @func_globals(OperationGlobals) {
-    @require(OperationType ot, Funcs f)
+    @requires(OperationType ot, Funcs f)
 
     $identifier = f.name
     $type = ot.type_name
