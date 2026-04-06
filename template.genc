@@ -1,46 +1,46 @@
 
 @table(Funcs) {
 
-$cols = {name type_name args ret}
+$cols = { name type_name args ret }
 
 $rows = 
 { 
-	{ Add               add_op_ft                 `int x, int y`        int }
-	{ Sub               sub_op_ft                 `int x, int y`        int }
-	{ Mul               mul_op_ft                 `int x, int y`        int }
+    { Add               add_op_ft                 `int x, int y`        int }
+    { Sub               sub_op_ft                 `int x, int y`        int }
+    { Mul               mul_op_ft                 `int x, int y`        int }
 }
 
 }
 
 @enum(FuncKind) {
-	@requires(Funcs f)
+    @requires(Funcs f)
 
-	$value_name = #concat(`FK_`, f.name)
+    $value_name = #concat(`FK_`, f.name)
 }
 
 @enum_to_string_table(FuncKindToString) { $enum = FuncKind }
 
 @func_types(OperationType) {
-	@requires(Funcs f)
+    @requires(Funcs f)
 
-	$identifier = f.name
-	$args       = f.args
-	$ret        = f.ret
+    $identifier = f.name
+    $args       = f.args
+    $ret        = f.ret
 }
 
 @func_globals(OperationGlobals) {
-	@require(OperationType ot, Funcs f)
+    @require(OperationType ot, Funcs f)
 
-	$identifier = f.name
-	$type = ot.type_name
+    $identifier = f.name
+    $type = ot.type_name
 }
 
 @custom(OperationFuncLoader) {
-	@requires(OperationGlobals og, OperationTypes ot)
+    @requires(OperationGlobals og, OperationTypes ot)
 
-	$template = `
+    $template = `
 internal  void load_funcs() {
-	{{range .og}} {{og.identifier}} = ({{ot.identifier}} *)wgl_load("{{og.identifier}}");{{end}}
+    {{range .og}} {{og.identifier}} = ({{ot.identifier}} *)wgl_load("{{og.identifier}}");{{end}}
 }
-	`
+    `
 }
