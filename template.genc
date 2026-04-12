@@ -20,6 +20,11 @@ $rows =
 
 @enum_to_string_table(FuncKindToString) { $enum = FuncKind }
 
+@struct(FuncOps) {
+	$field_types = { FuncKind int int }
+	$field_ids   = { kind op1 op2 }
+}
+
 @func_types(OperationType) {
     @requires(Funcs f)
 
@@ -43,4 +48,30 @@ internal  void load_funcs() {
     {{range .og}} {{og.identifier}} = ({{ot.identifier}} *)wgl_load("{{og.identifier}}");{{end}}
 }
     `
+}
+
+@genh(math_ops1) {
+	$primitives = {
+		Funcs
+	}
+}
+
+@genc(math_ops2) {
+	$primitives = {
+		FuncKind
+	}
+}
+
+@genhpp(math_ops3) {
+	$primitives = {
+		OperationTypes
+	}
+}
+
+
+@genhpp(math_ops4) {
+	$primitives = {
+		OperationGlobals
+		OperationType
+	}
 }

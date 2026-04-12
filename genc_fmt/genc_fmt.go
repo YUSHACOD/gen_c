@@ -268,17 +268,22 @@ start:
 
 //  (section) ---------------------------------------------------------------------- : tokenizer  //
 
-// parser : ------------------------------------------------------------------------- (section)  //
+// parser : -------------------------------------------------------------------------- (section)  //
 type PrimitiveType string
 
 const (
-	//  primitive types : ------------------------------------------------------------ (section)  //
+	//  primitive type: -------------------------------------------------------------- (section)  //
 	Table       PrimitiveType = "table"
 	Enum        PrimitiveType = "enum"
 	Enum2String PrimitiveType = "enum_to_string_table"
+	Struct      PrimitiveType = "struct"
 	FuncTypes   PrimitiveType = "func_types"
 	FuncGlobals PrimitiveType = "func_globals"
 	Custom      PrimitiveType = "custom"
+	GenCFile    PrimitiveType = "genc"
+	GenHFile    PrimitiveType = "genh"
+	GenCPPFile  PrimitiveType = "gencpp"
+	GenHPPFile  PrimitiveType = "genhpp"
 )
 
 type SubPrimType string
@@ -303,6 +308,10 @@ const (
 	// Enum2String Fields
 	Enum2String_Enum FieldType = FieldType((Enum2String) + "_" + "enum")
 
+	// Struct Fields
+	Struct_FieldTypes FieldType = FieldType(Struct + "_" + "field_types")
+	Struct_FieldIds   FieldType = FieldType(Struct + "_" + "field_ids")
+
 	// FunTypes Fields
 	FuncTypes_Identifier FieldType = FieldType((FuncTypes) + "_" + "identifier")
 	FuncTypes_Args       FieldType = FieldType((FuncTypes) + "_" + "args")
@@ -314,6 +323,12 @@ const (
 
 	// Custom Fields
 	Custom_Template FieldType = FieldType((Custom) + "_" + "template")
+
+	// Gen Primitive Fields
+	GenCFile_Primitives   FieldType = FieldType((GenCFile) + "_" + "primitives")
+	GenHFile_Primitives   FieldType = FieldType((GenHFile) + "_" + "primitives")
+	GenCPPFile_Primitives FieldType = FieldType((GenCPPFile) + "_" + "primitives")
+	GenHPPFile_Primitives FieldType = FieldType((GenHPPFile) + "_" + "primitives")
 )
 
 type ExpressionType string
@@ -774,82 +789,6 @@ func (p *Parser) parseExpression(exp *Expression) {
 
 }
 
-func (p *Parser) parseTable() (string, Primitives) {
-
-	//  table parsing : -------------------------------------------------------------- (section)  //
-	var id string
-	var table Primitives
-	table.typ = Table
-
-	id = p.parsePrimitiveId()
-	fmt.Println("Parsed Id: ", id)
-
-	p.nextToken()
-	if p.currToken.Typ == BraceOpen {
-
-		for range 2 {
-			p.nextToken()
-
-			var field_type FieldType
-			var field_val Expression
-
-			if p.currToken.Typ == FieldID {
-
-				switch FieldType(Table + "_" + PrimitiveType(p.currToken.Str)) {
-
-				case Table_Cols:
-					{
-
-						field_type = Table_Cols
-
-						p.nextToken()
-						if p.currToken.Typ == Equals {
-							p.parseExpression(&field_val)
-						} else {
-							p.Errorf(
-								"The Field is followed by a equals sign followed by the expression")
-						}
-					}
-
-				case Table_Rows:
-					{
-						field_type = Table_Rows
-
-						p.nextToken()
-						if p.currToken.Typ == Equals {
-							p.parseExpression(&field_val)
-						} else {
-							p.Errorf(
-								"The Field is followed by a equals sign followed by the expression")
-						}
-					}
-
-				default:
-					p.Errorf("Expected a table field")
-				}
-
-			} else {
-				p.Errorf("This should've been a feild instead of whatever")
-			}
-
-			table.fields = append(table.fields, Field{
-				typ: field_type,
-				val: field_val,
-			})
-		}
-
-		p.nextToken()
-		if p.currToken.Typ != BraceClose {
-			p.Errorf("Table primitives scope should end here.")
-		}
-
-	} else {
-		p.Errorf("No brace open for primtive definition scope")
-	}
-
-	return id, table
-}
-
 func (p *Parser) parseRequires() SubPrimitives {
 
 	//  requires parsing : ----------------------------------------------------------- (section)  //
@@ -904,381 +843,208 @@ func (p *Parser) parseRequires() SubPrimitives {
 	return requires
 }
 
-func (p *Parser) parseEnum() (string, Primitives) {
+func (p *Parser) parsePrimitive(
+	typ PrimitiveType,
+	fields map[FieldType]struct{},
+	is_requires_present bool,
+) (string, Primitives) {
 
 	var id string
-	var enum Primitives
+	var prim Primitives
 
-	enum.typ = Enum
+	prim.typ = typ
 
 	id = p.parsePrimitiveId()
 	fmt.Println("Parsed Id: ", id)
 
 	p.nextToken()
 	if p.currToken.Typ == BraceOpen {
-		p.nextToken()
-		if p.currToken.Typ == Primitive {
-			if p.currToken.Str == string(Requires) {
+		if is_requires_present {
+			p.nextToken()
+			if p.currToken.Typ == Primitive {
+				if p.currToken.Str == string(Requires) {
 
-				enum.sub_prims = append(enum.sub_prims, p.parseRequires())
+					prim.sub_prims = append(prim.sub_prims, p.parseRequires())
 
+				} else {
+					p.Errorf("Wrong sub prim type, expected requires")
+				}
 			} else {
-				p.Errorf("Wrong sub prim type, expected requires")
+				p.Errorf("There should be a requires sub prim here")
 			}
-		} else {
-			p.Errorf("There should be a requires sub prim here")
 		}
-
 	} else {
 		p.Errorf("No brace open for primtive definition scope")
 	}
 
-	p.nextToken()
-	if p.currToken.Typ == FieldID {
-		if FieldType(Enum)+"_"+FieldType(p.currToken.Str) == Enum_ValueName {
-			var value_name_field Field
-			value_name_field.typ = Enum_ValueName
+	for range fields {
 
-			p.nextToken()
-			if p.currToken.Typ == Equals {
-				p.parseExpression(&value_name_field.val)
-
-			} else {
-				p.Errorf(
-					"The Field is followed by a equals sign followed by the expression")
-			}
-
-			enum.fields = append(enum.fields, value_name_field)
-		} else {
-			p.Errorf("Expected to be a value name field for enum")
-		}
-	} else {
-		p.Errorf("This is expeceted to be a enum field")
-	}
-
-	p.nextToken()
-	if p.currToken.Typ != BraceClose {
-		p.Errorf("enum definition scope not closed properly")
-	}
-
-	return id, enum
-}
-
-func (p *Parser) parseEnumToString() (string, Primitives) {
-	var id string
-	var enum_to_string Primitives
-
-	enum_to_string.typ = Enum
-
-	id = p.parsePrimitiveId()
-	fmt.Println("Parsed Id: ", id)
-
-	p.nextToken()
-	if p.currToken.Typ == BraceOpen {
 		p.nextToken()
+
+		var field_type FieldType
+		var field_val Expression
+
 		if p.currToken.Typ == FieldID {
-			if FieldType(Enum2String)+"_"+FieldType(p.currToken.Str) == Enum2String_Enum {
-				var value_name_field Field
-				value_name_field.typ = Enum_ValueName
+
+			field_type_id := FieldType(string(typ) + "_" + p.currToken.Str)
+			if _, ok := fields[field_type_id]; ok {
+
+				field_type = field_type_id
 
 				p.nextToken()
 				if p.currToken.Typ == Equals {
-					p.parseExpression(&value_name_field.val)
+					p.parseExpression(&field_val)
 
 				} else {
 					p.Errorf(
 						"The Field is followed by a equals sign followed by the expression")
 				}
 
-				enum_to_string.fields = append(enum_to_string.fields, value_name_field)
 			} else {
-				p.Errorf("Expected to be a value name field for enum")
+				p.Errorf("Expected to be a value name field for %s", typ)
 			}
 		} else {
-			p.Errorf("This is expeceted to be a enum field")
+			p.Errorf("This is expeceted to be a %s field", typ)
 		}
-	} else {
-		p.Errorf("No brace open for primtive definition scope")
+
+		prim.fields = append(prim.fields, Field{
+			typ: field_type,
+			val: field_val,
+		})
 	}
 
 	p.nextToken()
 	if p.currToken.Typ != BraceClose {
-		p.Errorf("enum definition scope not closed properly")
+		p.Errorf("%s definition scope not closed properly", typ)
 	}
 
-	return id, enum_to_string
+	return id, prim
+}
+
+func (p *Parser) parseTable() (string, Primitives) {
+
+	//  table parsing : -------------------------------------------------------------- (section)  //
+	return p.parsePrimitive(
+		Table,
+		map[FieldType]struct{}{
+			Table_Cols: {},
+			Table_Rows: {},
+		},
+		false,
+	)
+}
+
+func (p *Parser) parseEnum() (string, Primitives) {
+	//  enum parsing : --------------------------------------------------------------- (section)  //
+	return p.parsePrimitive(
+		Enum,
+
+		map[FieldType]struct{}{
+			Enum_ValueName: {},
+		},
+		true,
+	)
+}
+
+func (p *Parser) parseEnumToString() (string, Primitives) {
+	//  enum2string parsing : -------------------------------------------------------- (section)  //
+	return p.parsePrimitive(
+		Enum2String,
+		map[FieldType]struct{}{
+			Enum2String_Enum: {},
+		},
+		false,
+	)
+}
+
+func (p *Parser) parseStruct() (string, Primitives) {
+	//  struct parsing : ------------------------------------------------------------- (section)  //
+	return p.parsePrimitive(
+		Struct,
+		map[FieldType]struct{}{
+			Struct_FieldIds:   {},
+			Struct_FieldTypes: {},
+		},
+		false,
+	)
 }
 
 func (p *Parser) parseFuncTypes() (string, Primitives) {
-
-	var id string
-	var func_types Primitives
-
-	func_types.typ = Enum
-
-	id = p.parsePrimitiveId()
-	fmt.Println("Parsed Id: ", id)
-
-	p.nextToken()
-	if p.currToken.Typ == BraceOpen {
-		p.nextToken()
-		if p.currToken.Typ == Primitive {
-			if p.currToken.Str == string(Requires) {
-
-				func_types.sub_prims = append(func_types.sub_prims, p.parseRequires())
-
-			} else {
-				p.Errorf("Wrong sub prim type, expected requires")
-			}
-		} else {
-			p.Errorf("There should be a requires sub prim here")
-		}
-
-	} else {
-		p.Errorf("No brace open for primtive definition scope")
-	}
-
-	for range 3 {
-
-		p.nextToken()
-
-		var field_type FieldType
-		var field_val Expression
-
-		if p.currToken.Typ == FieldID {
-
-			switch FieldType(FuncTypes) + "_" + FieldType(p.currToken.Str) {
-			case FuncTypes_Identifier:
-				{
-					field_type = FuncTypes_Identifier
-
-					p.nextToken()
-					if p.currToken.Typ == Equals {
-						p.parseExpression(&field_val)
-
-					} else {
-						p.Errorf(
-							"The Field is followed by a equals sign followed by the expression")
-					}
-				}
-
-			case FuncTypes_Args:
-				{
-					field_type = FuncTypes_Args
-
-					p.nextToken()
-					if p.currToken.Typ == Equals {
-						p.parseExpression(&field_val)
-
-					} else {
-						p.Errorf(
-							"The Field is followed by a equals sign followed by the expression")
-					}
-				}
-
-			case FuncTypes_Ret:
-				{
-					field_type = FuncTypes_Ret
-
-					p.nextToken()
-					if p.currToken.Typ == Equals {
-						p.parseExpression(&field_val)
-
-					} else {
-						p.Errorf(
-							"The Field is followed by a equals sign followed by the expression")
-					}
-				}
-
-			default:
-				p.Errorf("Expected to be a value name field for func type")
-			}
-
-		} else {
-			p.Errorf("This is expeceted to be a func type field")
-		}
-
-		func_types.fields = append(func_types.fields, Field{
-			typ: field_type,
-			val: field_val,
-		})
-
-	}
-
-	p.nextToken()
-	if p.currToken.Typ != BraceClose {
-		p.Errorf("Func Types definition scope not closed properly")
-	}
-
-	return id, func_types
+	//  func_types parsing : --------------------------------------------------------- (section)  //
+	return p.parsePrimitive(
+		FuncTypes,
+		map[FieldType]struct{}{
+			FuncTypes_Identifier: {},
+			FuncTypes_Args:       {},
+			FuncTypes_Ret:        {},
+		},
+		true,
+	)
 }
 
 func (p *Parser) parseFuncGlobals() (string, Primitives) {
-
-	var id string
-	var func_globals Primitives
-
-	func_globals.typ = Enum
-
-	id = p.parsePrimitiveId()
-	fmt.Println("Parsed Id: ", id)
-
-	p.nextToken()
-	if p.currToken.Typ == BraceOpen {
-		p.nextToken()
-		if p.currToken.Typ == Primitive {
-			if p.currToken.Str == string(Requires) {
-
-				func_globals.sub_prims = append(func_globals.sub_prims, p.parseRequires())
-
-			} else {
-				p.Errorf("Wrong sub prim type, expected requires")
-			}
-		} else {
-			p.Errorf("There should be a requires sub prim here")
-		}
-
-	} else {
-		p.Errorf("No brace open for primtive definition scope")
-	}
-
-	for range 2 {
-
-		p.nextToken()
-
-		var field_type FieldType
-		var field_val Expression
-
-		if p.currToken.Typ == FieldID {
-
-			switch FieldType(FuncGlobals) + "_" + FieldType(p.currToken.Str) {
-
-			case FuncGlobals_Identifier:
-				{
-					field_type = FuncGlobals_Identifier
-
-					p.nextToken()
-					if p.currToken.Typ == Equals {
-						p.parseExpression(&field_val)
-
-					} else {
-						p.Errorf(
-							"The Field is followed by a equals sign followed by the expression")
-					}
-				}
-
-			case FuncGlobals_Type:
-				{
-					field_type = FuncGlobals_Type
-
-					p.nextToken()
-					if p.currToken.Typ == Equals {
-						p.parseExpression(&field_val)
-
-					} else {
-						p.Errorf(
-							"The Field is followed by a equals sign followed by the expression")
-					}
-				}
-
-			default:
-				p.Errorf("Expected to be a value name field for func globals")
-			}
-
-		} else {
-			p.Errorf("This is expeceted to be a func globals field")
-		}
-
-		func_globals.fields = append(func_globals.fields, Field{
-			typ: field_type,
-			val: field_val,
-		})
-
-	}
-
-	p.nextToken()
-	if p.currToken.Typ != BraceClose {
-		p.Errorf("Func Types definition scope not closed properly")
-	}
-
-	return id, func_globals
+	//  func_globals parsing : ------------------------------------------------------- (section)  //
+	return p.parsePrimitive(
+		FuncGlobals,
+		map[FieldType]struct{}{
+			FuncGlobals_Identifier: {},
+			FuncGlobals_Type:       {},
+		},
+		true,
+	)
 }
 
 func (p *Parser) parseCustom() (string, Primitives) {
+	//  custom parsing : ------------------------------------------------------------- (section)  //
+	return p.parsePrimitive(
+		Custom,
+		map[FieldType]struct{}{
+			Custom_Template: {},
+		},
+		true,
+	)
+}
 
-	var id string
-	var custom Primitives
+func (p *Parser) parseGenCPrim() (string, Primitives) {
+	//  file_type_parsing : ---------------------------------------------------------- (section)  //
+	return p.parsePrimitive(
+		GenCFile,
 
-	custom.typ = Enum
+		map[FieldType]struct{}{
+			GenCFile_Primitives: {},
+		},
+		false,
+	)
+}
 
-	id = p.parsePrimitiveId()
-	fmt.Println("Parsed Id: ", id)
+func (p *Parser) parseGenHPrim() (string, Primitives) {
+	return p.parsePrimitive(
+		GenCFile,
+		map[FieldType]struct{}{
+			GenCFile_Primitives: {},
+		},
+		false,
+	)
+}
 
-	p.nextToken()
-	if p.currToken.Typ == BraceOpen {
-		p.nextToken()
-		if p.currToken.Typ == Primitive {
-			if p.currToken.Str == string(Requires) {
+func (p *Parser) parseGenCppPrim() (string, Primitives) {
+	return p.parsePrimitive(
+		GenCFile,
+		map[FieldType]struct{}{
+			GenCFile_Primitives: {},
+		},
+		false,
+	)
+}
 
-				custom.sub_prims = append(custom.sub_prims, p.parseRequires())
-
-			} else {
-				p.Errorf("Wrong sub prim type, expected requires")
-			}
-		} else {
-			p.Errorf("There should be a requires sub prim here")
-		}
-
-	} else {
-		p.Errorf("No brace open for primtive definition scope")
-	}
-
-	for range 1 {
-
-		p.nextToken()
-
-		var field_type FieldType
-		var field_val Expression
-
-		if p.currToken.Typ == FieldID {
-
-			switch FieldType(Custom) + "_" + FieldType(p.currToken.Str) {
-
-			case Custom_Template:
-				{
-					field_type = Custom_Template
-
-					p.nextToken()
-					if p.currToken.Typ == Equals {
-						p.parseExpression(&field_val)
-
-					} else {
-						p.Errorf(
-							"The Field is followed by a equals sign followed by the expression")
-					}
-				}
-
-			default:
-				p.Errorf("Expected to be a field for custom")
-			}
-
-		} else {
-			p.Errorf("This is expeceted to be a custom prim field")
-		}
-
-		custom.fields = append(custom.fields, Field{
-			typ: field_type,
-			val: field_val,
-		})
-
-	}
-
-	p.nextToken()
-	if p.currToken.Typ != BraceClose {
-		p.Errorf("Func Types definition scope not closed properly")
-	}
-
-	return id, custom
+func (p *Parser) parseGenHppPrim() (string, Primitives) {
+	return p.parsePrimitive(
+		GenCFile,
+		map[FieldType]struct{}{
+			GenCFile_Primitives: {},
+		},
+		false,
+	)
 }
 
 func ParseGenc(t *Tokenizer) *GenC {
@@ -1314,6 +1080,12 @@ func ParseGenc(t *Tokenizer) *GenC {
 				genc.Primitives[id] = enum_to_string
 			}
 
+		case Struct:
+			{
+				id, struct_prim := p.parseStruct()
+				genc.Primitives[id] = struct_prim
+			}
+
 		case FuncTypes:
 			{
 				id, func_types := p.parseFuncTypes()
@@ -1331,6 +1103,27 @@ func ParseGenc(t *Tokenizer) *GenC {
 				id, custom := p.parseCustom()
 				genc.Primitives[id] = custom
 
+			}
+
+		case GenCFile:
+			{
+				id, gen_c_file := p.parseGenCPrim()
+				genc.Primitives[id] = gen_c_file
+			}
+		case GenHFile:
+			{
+				id, gen_h_file := p.parseGenHPrim()
+				genc.Primitives[id] = gen_h_file
+			}
+		case GenCPPFile:
+			{
+				id, gen_cpp_file := p.parseGenCppPrim()
+				genc.Primitives[id] = gen_cpp_file
+			}
+		case GenHPPFile:
+			{
+				id, gen_hpp_file := p.parseGenHppPrim()
+				genc.Primitives[id] = gen_hpp_file
 			}
 
 		default:

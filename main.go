@@ -17,7 +17,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Input file reading error => %v", err)
 	}
-	
+
 	// fmt.Printf("%s\n", content)
 
 	genc_fmt.ParseGenc(content)
