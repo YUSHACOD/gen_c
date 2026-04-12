@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	"github.com/xlab/treeprint"
+
+	gn "github.com/YUSHACOD/gen_c/gnrtr"
 )
 
 // tokenizer : ---------------------------------------------------------------------- (section)  //
@@ -385,7 +387,7 @@ type SubPrimitives struct {
 }
 
 type Primitives struct {
-	typ       PrimitiveType
+	Typ       PrimitiveType
 	sub_prims []SubPrimitives
 	fields    []Field
 }
@@ -478,7 +480,7 @@ func (s *SubPrimitives) Print() {
 }
 
 func (p *Primitives) addToTree(branch treeprint.Tree) {
-	b := branch.AddBranch(fmt.Sprintf("Primitives: %v", p.typ))
+	b := branch.AddBranch(fmt.Sprintf("Primitives: %v", p.Typ))
 
 	subs := b.AddBranch("SubPrimitives")
 	for _, sp := range p.sub_prims {
@@ -765,7 +767,7 @@ func (p *Parser) parsePrimitive(
 	var id string
 	var prim Primitives
 
-	prim.typ = typ
+	prim.Typ = typ
 
 	id = p.parsePrimitiveId()
 
@@ -960,72 +962,84 @@ func ParseGenc(t *Tokenizer) *GenC {
 
 	//  parser core : ---------------------------------------------------------------- (section)  //
 	for ; p.currToken.Typ != Eof; p.nextToken() {
-		var id string
+		var id_string string
 		switch PrimitiveType(p.currToken.Str) {
 
 		case Table:
 			{
 				id, table := p.parseTable()
 				genc.Primitives[id] = table
+				id_string = id
 			}
 
 		case Enum:
 			{
 				id, enum := p.parseEnum()
 				genc.Primitives[id] = enum
-
+				id_string = id
 			}
 
 		case Enum2String:
 			{
 				id, enum_to_string := p.parseEnumToString()
 				genc.Primitives[id] = enum_to_string
+				id_string = id
 			}
 
 		case Struct:
 			{
 				id, struct_prim := p.parseStruct()
 				genc.Primitives[id] = struct_prim
+				id_string = id
 			}
 
 		case FuncTypes:
 			{
 				id, func_types := p.parseFuncTypes()
 				genc.Primitives[id] = func_types
+				id_string = id
 			}
 
 		case FuncGlobals:
 			{
 				id, func_globals := p.parseFuncGlobals()
 				genc.Primitives[id] = func_globals
+				id_string = id
 			}
 
 		case Custom:
 			{
 				id, custom := p.parseCustom()
 				genc.Primitives[id] = custom
-
+				id_string = id
 			}
 
 		case GenCFile:
 			{
 				id, gen_c_file := p.parseGenCPrim()
 				genc.Primitives[id] = gen_c_file
+				id_string = id
 			}
+
 		case GenHFile:
 			{
 				id, gen_h_file := p.parseGenHPrim()
 				genc.Primitives[id] = gen_h_file
+				id_string = id
 			}
+
 		case GenCPPFile:
 			{
 				id, gen_cpp_file := p.parseGenCppPrim()
 				genc.Primitives[id] = gen_cpp_file
+				id_string = id
 			}
+
 		case GenHPPFile:
 			{
 				id, gen_hpp_file := p.parseGenHppPrim()
 				genc.Primitives[id] = gen_hpp_file
+				id_string = id
 			}
 
 		default:
@@ -1039,7 +1053,7 @@ func ParseGenc(t *Tokenizer) *GenC {
 			}
 		}
 
-		genc.Ids = append(genc.Ids, id)
+		genc.Ids = append(genc.Ids, id_string)
 	}
 
 	return genc
@@ -1048,3 +1062,164 @@ func ParseGenc(t *Tokenizer) *GenC {
 //  (section) ------------------------------------------------------------------ : parser proper  //
 
 //  (section) ------------------------------------------------------------------------- : parser  //
+
+//  expression evaluation : ---------------------------------------------------------- (section)  //
+
+func (e *Expression) evaluate() string {
+	var res string
+
+	switch e.typ {
+
+	case Value:
+		return e.value
+
+	case Array:
+	case ColId:
+	case PrimIdAlias:
+	case Op_Concat:
+	case Op_Uppercase:
+	case Op_Lowercase:
+	case Op_Snake2Pascal:
+	case Op_Snake2Camel:
+	case Op_Pascal2Snake:
+	case Op_Pascal2Camel:
+	case Op_Camel2Snake:
+	case Op_Camel2Pascal:
+
+	}
+
+	return res
+}
+
+func (e *Expression) evaluateArray() []string {
+
+	if e.typ != Array {
+		log.Panicf("This is not a Array Expression %s", e.typ)
+	}
+
+	res := make([]string, 0)
+
+	for _, exp := range e.arr {
+		res = append(res, exp.evaluate())
+	}
+
+	return res
+}
+
+//  (section) ---------------------------------------------------------- : expression evaluation  //
+
+// gen writables : ------------------------------------------------------------------ (section)  //
+func genTable(p Primitives) gn.Table {
+	table := gn.Table{
+		Rows: make(map[string][]string),
+	}
+
+	for i := range 2 {
+		field := p.fields[i]
+		switch field.typ {
+		case Table_Cols:
+			{
+				for _, exp := range field.val.arr {
+					table.Cols = append(table.Cols, exp.evaluate())
+				}
+			}
+
+		case Table_Rows:
+			{
+				for _, exp := range field.val.arr {
+					row := exp.evaluateArray()
+					for i, row_elem := range row {
+						table.Rows[table.Cols[i]] = append(
+							table.Rows[table.Cols[i]],
+							row_elem,
+						)
+					}
+				}
+			}
+
+		default:
+			log.Panicf("This is invalid field type for table %s", field.typ)
+		}
+	}
+
+	return table
+}
+
+func GenerateWritables(genc *GenC) gn.GencWritables {
+	wrtb := gn.GencWritables{
+		Tables:      make(map[string]gn.Table),
+		Enums:       make(map[string]gn.Enum),
+		FuncTypes:   make(map[string]gn.FuncType),
+		FuncGlobals: make(map[string]gn.FuncGlobal),
+		Customs:     make(map[string]gn.Custom),
+	}
+
+	for _, id := range genc.Ids {
+		prim := genc.Primitives[id]
+
+		switch prim.Typ {
+
+		case Table:
+			{
+				wrtb.Tables[id] = genTable(prim)
+			}
+
+		case Enum:
+			{
+
+				//  todo  : ---------------------------------------------------------- (section)  //
+				// do this, need gen<something> type of function to be a method of writables
+				// to gains access of tables and access its data for field evaluation
+				// you will have to think hard about it
+				// wrtb.Table[id] = genEnum
+			}
+
+		case Enum2String:
+			{
+
+			}
+
+		case Struct:
+			{
+			}
+
+		case FuncTypes:
+			{
+			}
+
+		case FuncGlobals:
+			{
+			}
+
+		case Custom:
+			{
+			}
+
+		case GenCFile:
+			{
+			}
+
+		case GenHFile:
+			{
+			}
+
+		case GenCPPFile:
+			{
+			}
+
+		case GenHPPFile:
+			{
+			}
+
+		default:
+			{
+				log.Fatalf("This ain't no primitive %s", string(genc.Primitives[id].Typ))
+			}
+
+		}
+	}
+
+	return wrtb
+}
+
+//  (section) ------------------------------------------------------------------ : gen writables  //

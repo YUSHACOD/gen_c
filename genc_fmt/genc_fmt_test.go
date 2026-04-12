@@ -6,6 +6,7 @@ import (
 	"os"
 
 	gf "github.com/YUSHACOD/gen_c/genc_fmt"
+	// gen "github.com/YUSHACOD/gen_c/gnrtr"
 )
 
 func Test(test *testing.T) {
@@ -25,10 +26,9 @@ func Test(test *testing.T) {
 		fmt.Println("Primitive Val:")
 		v.Print()
 	}
-	// for token := t.NextToken(); token.Typ != gf.Eof; token = t.NextToken() {
-	// 	token.Print()
-	// 	fmt.Println()
-	// }
+
+	w := gf.GenerateWritables(genc)
+	w.Print()
 }
 
 
