@@ -3,7 +3,6 @@ package genc_fmt
 import (
 	"fmt"
 	"log"
-	// "os"
 	"strings"
 
 	"github.com/xlab/treeprint"
@@ -23,8 +22,8 @@ const (
 	BacktickStringValue TokenType = "BacktickStringValue"
 	NormalStringValue   TokenType = "NormalStringValue"
 	CommaSeperator      TokenType = "CommaSeperator"
-	FieldID             TokenType = "FieldID"
 	Operation           TokenType = "Operation"
+	FieldID             TokenType = "FieldID"
 	Equals              TokenType = "Equals"
 	Eof                 TokenType = "Eof"
 )
@@ -89,6 +88,14 @@ func (t *Tokenizer) NextToken() Token {
 
 start:
 	switch {
+
+	case t.ch == '>' && t.input[t.readPosition] == '>':
+		{
+			// t.col != 0 because t.col == 0 indicates
+			// line increment
+			for t.readChar(); t.col != 0; t.readChar() {
+			}
+		}
 
 	case t.ch == '@': // Primitives processor
 		{
@@ -272,7 +279,7 @@ start:
 type PrimitiveType string
 
 const (
-	//  primitive type: -------------------------------------------------------------- (section)  //
+	//  primitive types : ------------------------------------------------------------ (section)  //
 	Table       PrimitiveType = "table"
 	Enum        PrimitiveType = "enum"
 	Enum2String PrimitiveType = "enum_to_string_table"
@@ -385,6 +392,7 @@ type Primitives struct {
 
 type GenC struct {
 	Primitives map[string]Primitives
+	Ids        []string
 }
 
 //  (section) ------------------------------------------------------------ : ast element structs  //
@@ -580,6 +588,24 @@ func (p *Parser) parsePrimitiveId() string {
 
 func (p *Parser) parseExpression(exp *Expression) {
 
+	parseSingleArgOperation := func(exp *Expression, typ ExpressionType) {
+		exp.typ = typ
+		p.nextToken()
+		if p.currToken.Typ == ParanOpen {
+
+			var arg Expression
+			p.parseExpression(&arg)
+			exp.arr = append(exp.arr, arg)
+
+			p.nextToken()
+			if p.currToken.Typ != ParanClose {
+				p.Errorf("this operation takes only one expression close the scope with ')'")
+			}
+		} else {
+			p.Errorf("Expected a start of operations args scope with '('")
+		}
+	}
+
 	//  expression parsing : --------------------------------------------------------- (section)  //
 	p.nextToken()
 	switch p.currToken.Typ {
@@ -602,6 +628,7 @@ func (p *Parser) parseExpression(exp *Expression) {
 
 	case NormalStringValue:
 		exp.value = p.currToken.Str
+		exp.typ = Value
 		if p.peekToken.Typ == FieldPoint {
 
 			p.nextToken() // setting curr token to field point
@@ -612,8 +639,6 @@ func (p *Parser) parseExpression(exp *Expression) {
 				typ:   Value,
 				value: p.currToken.Str,
 			})
-		} else {
-			exp.typ = Value
 		}
 
 	case Operation:
@@ -644,140 +669,28 @@ func (p *Parser) parseExpression(exp *Expression) {
 			}
 
 		case Op_Uppercase:
-			exp.typ = Op_Uppercase
-			p.nextToken()
-			if p.currToken.Typ == ParanOpen {
-
-				var arg Expression
-				p.parseExpression(&arg)
-				exp.arr = append(exp.arr, arg)
-
-				p.nextToken()
-				if p.currToken.Typ != ParanClose {
-					p.Errorf("this operation takes only one expression close the scope with ')'")
-				}
-			} else {
-				p.Errorf("Expected a start of operations args scope with '('")
-			}
+			parseSingleArgOperation(exp, Op_Uppercase)
 
 		case Op_Lowercase:
-			exp.typ = Op_Lowercase
-			p.nextToken()
-			if p.currToken.Typ == ParanOpen {
-
-				var arg Expression
-				p.parseExpression(&arg)
-				exp.arr = append(exp.arr, arg)
-
-				p.nextToken()
-				if p.currToken.Typ != ParanClose {
-					p.Errorf("this operation takes only one expression close the scope with ')'")
-				}
-			} else {
-				p.Errorf("Expected a start of operations args scope with '('")
-			}
+			parseSingleArgOperation(exp, Op_Lowercase)
 
 		case Op_Snake2Pascal:
-			exp.typ = Op_Snake2Pascal
-			p.nextToken()
-			if p.currToken.Typ == ParanOpen {
-
-				var arg Expression
-				p.parseExpression(&arg)
-				exp.arr = append(exp.arr, arg)
-
-				p.nextToken()
-				if p.currToken.Typ != ParanClose {
-					p.Errorf("this operation takes only one expression close the scope with ')'")
-				}
-			} else {
-				p.Errorf("Expected a start of operations args scope with '('")
-			}
+			parseSingleArgOperation(exp, Op_Snake2Pascal)
 
 		case Op_Snake2Camel:
-			exp.typ = Op_Snake2Camel
-			p.nextToken()
-			if p.currToken.Typ == ParanOpen {
-
-				var arg Expression
-				p.parseExpression(&arg)
-				exp.arr = append(exp.arr, arg)
-
-				p.nextToken()
-				if p.currToken.Typ != ParanClose {
-					p.Errorf("this operation takes only one expression close the scope with ')'")
-				}
-			} else {
-				p.Errorf("Expected a start of operations args scope with '('")
-			}
+			parseSingleArgOperation(exp, Op_Snake2Camel)
 
 		case Op_Pascal2Snake:
-			exp.typ = Op_Pascal2Snake
-			p.nextToken()
-			if p.currToken.Typ == ParanOpen {
-
-				var arg Expression
-				p.parseExpression(&arg)
-				exp.arr = append(exp.arr, arg)
-
-				p.nextToken()
-				if p.currToken.Typ != ParanClose {
-					p.Errorf("this operation takes only one expression close the scope with ')'")
-				}
-			} else {
-				p.Errorf("Expected a start of operations args scope with '('")
-			}
+			parseSingleArgOperation(exp, Op_Pascal2Snake)
 
 		case Op_Pascal2Camel:
-			exp.typ = Op_Pascal2Camel
-			p.nextToken()
-			if p.currToken.Typ == ParanOpen {
-
-				var arg Expression
-				p.parseExpression(&arg)
-				exp.arr = append(exp.arr, arg)
-
-				p.nextToken()
-				if p.currToken.Typ != ParanClose {
-					p.Errorf("this operation takes only one expression close the scope with ')'")
-				}
-			} else {
-				p.Errorf("Expected a start of operations args scope with '('")
-			}
+			parseSingleArgOperation(exp, Op_Pascal2Camel)
 
 		case Op_Camel2Snake:
-			exp.typ = Op_Camel2Snake
-			p.nextToken()
-			if p.currToken.Typ == ParanOpen {
-
-				var arg Expression
-				p.parseExpression(&arg)
-				exp.arr = append(exp.arr, arg)
-
-				p.nextToken()
-				if p.currToken.Typ != ParanClose {
-					p.Errorf("this operation takes only one expression close the scope with ')'")
-				}
-			} else {
-				p.Errorf("Expected a start of operations args scope with '('")
-			}
+			parseSingleArgOperation(exp, Op_Camel2Snake)
 
 		case Op_Camel2Pascal:
-			exp.typ = Op_Camel2Pascal
-			p.nextToken()
-			if p.currToken.Typ == ParanOpen {
-
-				var arg Expression
-				p.parseExpression(&arg)
-				exp.arr = append(exp.arr, arg)
-
-				p.nextToken()
-				if p.currToken.Typ != ParanClose {
-					p.Errorf("this operation takes only one expression close the scope with ')'")
-				}
-			} else {
-				p.Errorf("Expected a start of operations args scope with '('")
-			}
+			parseSingleArgOperation(exp, Op_Camel2Pascal)
 
 		default:
 			p.Errorf("Not a valid Expression")
@@ -846,20 +759,19 @@ func (p *Parser) parseRequires() SubPrimitives {
 func (p *Parser) parsePrimitive(
 	typ PrimitiveType,
 	fields map[FieldType]struct{},
-	is_requires_present bool,
 ) (string, Primitives) {
 
+	//  primitive parsing : ---------------------------------------------------------- (section)  //
 	var id string
 	var prim Primitives
 
 	prim.typ = typ
 
 	id = p.parsePrimitiveId()
-	fmt.Println("Parsed Id: ", id)
 
 	p.nextToken()
 	if p.currToken.Typ == BraceOpen {
-		if is_requires_present {
+		if p.peekToken.Typ == Primitive {
 			p.nextToken()
 			if p.currToken.Typ == Primitive {
 				if p.currToken.Str == string(Requires) {
@@ -930,7 +842,6 @@ func (p *Parser) parseTable() (string, Primitives) {
 			Table_Cols: {},
 			Table_Rows: {},
 		},
-		false,
 	)
 }
 
@@ -942,7 +853,6 @@ func (p *Parser) parseEnum() (string, Primitives) {
 		map[FieldType]struct{}{
 			Enum_ValueName: {},
 		},
-		true,
 	)
 }
 
@@ -953,7 +863,6 @@ func (p *Parser) parseEnumToString() (string, Primitives) {
 		map[FieldType]struct{}{
 			Enum2String_Enum: {},
 		},
-		false,
 	)
 }
 
@@ -965,7 +874,6 @@ func (p *Parser) parseStruct() (string, Primitives) {
 			Struct_FieldIds:   {},
 			Struct_FieldTypes: {},
 		},
-		false,
 	)
 }
 
@@ -978,7 +886,6 @@ func (p *Parser) parseFuncTypes() (string, Primitives) {
 			FuncTypes_Args:       {},
 			FuncTypes_Ret:        {},
 		},
-		true,
 	)
 }
 
@@ -990,7 +897,6 @@ func (p *Parser) parseFuncGlobals() (string, Primitives) {
 			FuncGlobals_Identifier: {},
 			FuncGlobals_Type:       {},
 		},
-		true,
 	)
 }
 
@@ -1001,7 +907,6 @@ func (p *Parser) parseCustom() (string, Primitives) {
 		map[FieldType]struct{}{
 			Custom_Template: {},
 		},
-		true,
 	)
 }
 
@@ -1013,7 +918,6 @@ func (p *Parser) parseGenCPrim() (string, Primitives) {
 		map[FieldType]struct{}{
 			GenCFile_Primitives: {},
 		},
-		false,
 	)
 }
 
@@ -1023,7 +927,6 @@ func (p *Parser) parseGenHPrim() (string, Primitives) {
 		map[FieldType]struct{}{
 			GenCFile_Primitives: {},
 		},
-		false,
 	)
 }
 
@@ -1033,7 +936,6 @@ func (p *Parser) parseGenCppPrim() (string, Primitives) {
 		map[FieldType]struct{}{
 			GenCFile_Primitives: {},
 		},
-		false,
 	)
 }
 
@@ -1043,7 +945,6 @@ func (p *Parser) parseGenHppPrim() (string, Primitives) {
 		map[FieldType]struct{}{
 			GenCFile_Primitives: {},
 		},
-		false,
 	)
 }
 
@@ -1059,6 +960,7 @@ func ParseGenc(t *Tokenizer) *GenC {
 
 	//  parser core : ---------------------------------------------------------------- (section)  //
 	for ; p.currToken.Typ != Eof; p.nextToken() {
+		var id string
 		switch PrimitiveType(p.currToken.Str) {
 
 		case Table:
@@ -1136,6 +1038,8 @@ func ParseGenc(t *Tokenizer) *GenC {
 				p.Errorf("Invalid Primitive type: %s", p.currToken.Str)
 			}
 		}
+
+		genc.Ids = append(genc.Ids, id)
 	}
 
 	return genc

@@ -3,8 +3,10 @@
 
 $cols = { name type_name args ret }
 
+>> comment 1
 $rows = 
 { 
+						>> comment3
     { Add               add_op_ft                 `int x, int y`        int }
     { Sub               sub_op_ft                 `int x, int y`        int }
     { Mul               mul_op_ft                 `int x, int y`        int }
@@ -12,13 +14,17 @@ $rows =
 
 }
 
+>> comment 1
 @enum(FuncKind) {
     @requires(Funcs f)
 
     $value_name = #concat(`FK_`, f.name)
 }
 
-@enum_to_string_table(FuncKindToString) { $enum = FuncKind }
+@enum_to_string_table(FuncKindToString) >> comment 
+{ 
+	$enum = FuncKind 
+}
 
 @struct(FuncOps) {
 	$field_types = { FuncKind int int }
