@@ -1,0 +1,804 @@
+package genc_fmt
+
+import (
+	// "fmt"
+	// "strings"
+	"fmt"
+	"log"
+	"math"
+	"os"
+	"strings"
+	"unicode"
+
+	"text/template"
+
+	"github.com/davecgh/go-spew/spew"
+	"github.com/olekukonko/tablewriter"
+)
+
+//  templates : ---------------------------------------------------------------------- (section)  //
+
+//  (section) ---------------------------------------------------------------------- : templates  //
+
+//  write data structs : ------------------------------------------------------------- (section)  //
+
+type Table struct {
+	cols []string
+	rows []map[string]string
+}
+
+type Enum struct {
+	value_names []string
+}
+
+type Struct struct {
+	field_types []string
+	field_ids   []string
+}
+
+type FuncType struct {
+	identifier string
+	ret        string
+	args       string
+}
+
+type FuncGlobal struct {
+	typ        string
+	identifier string
+}
+
+type GenFileType string
+
+const (
+	GFT_C   GenFileType = "GFT_C"
+	GFT_H   GenFileType = "GFT_H"
+	GFT_CPP GenFileType = "GFT_CPP"
+	GFT_HPP GenFileType = "GFT_HPP"
+)
+
+type GenFile struct {
+	set       bool
+	name      string
+	prim_list []string
+	typ       GenFileType
+}
+
+type Enum2String string
+
+type Custom string
+
+type GencWritables struct {
+	curr_req map[string]Table
+	req_len  uint32
+
+	Tables      map[string]Table
+	Enums       map[string]Enum
+	Structs     map[string]Struct
+	FuncTypes   map[string][]FuncType
+	FuncGlobals map[string][]FuncGlobal
+	Customs     map[string]Custom
+
+	Enum2Strings map[string]Enum2String
+
+	C   GenFile
+	H   GenFile
+	Cpp GenFile
+	Hpp GenFile
+
+	TypeMap map[string]PrimitiveType
+}
+
+type WriteType string
+
+const (
+	C_file   WriteType = "c_file"
+	H_file   WriteType = "h_file"
+	CPP_file WriteType = "cpp_file"
+	HPP_file WriteType = "hpp_file"
+)
+
+type WriteCommand struct {
+	typ         WriteType
+	write_order []string
+}
+
+//  (section) ------------------------------------------------------------- : write data structs  //
+
+// writables print helpers : -------------------------------------------------------- (section)  //
+func (t Table) Print() {
+
+	colKeys := t.cols
+
+	table := tablewriter.NewWriter(os.Stdout)
+	table.Header(colKeys)
+
+	for i := range len(t.rows) {
+
+		row := make([]string, len(colKeys))
+
+		for j, key := range colKeys {
+			if i < len(t.rows) {
+				row[j] = t.rows[i][key]
+			}
+		}
+
+		table.Append(row)
+	}
+
+	table.Render()
+}
+
+func (e Enum) Print() {
+	fmt.Println("Value: ")
+	for _, s := range e.value_names {
+		fmt.Println(s)
+	}
+}
+
+func (s Struct) Print() {
+	fmt.Println("Struct Fields: ")
+	for idx := range s.field_types {
+		fmt.Printf("type: %s, identifier: %s\n", s.field_types[idx], s.field_ids[idx])
+	}
+}
+
+func (f FuncType) Print() {
+	fmt.Printf("Return: %s,  Identifier: %s, Args: %s\n", f.ret, f.identifier, f.args)
+}
+
+func (f FuncGlobal) Print() {
+	fmt.Printf("Type: %s,  Identifier: %s\n", f.typ, f.identifier)
+}
+
+func (w GencWritables) Print() {
+
+	fmt.Println(Blue)
+	fmt.Println("Writables")
+
+	for id, t := range w.Tables {
+		fmt.Printf("Table %s ->\n", id)
+		t.Print()
+	}
+
+	fmt.Println()
+	for id, e := range w.Enums {
+		fmt.Printf("Enum %s ->\n", id)
+		e.Print()
+	}
+
+	fmt.Println()
+	for id, s := range w.Structs {
+		fmt.Printf("Struct %s ->\n", id)
+		s.Print()
+	}
+
+	fmt.Println()
+	for id, fs := range w.FuncTypes {
+		fmt.Printf("FuncTypes %s ->\n", id)
+		for _, f := range fs {
+			f.Print()
+		}
+	}
+
+	fmt.Println()
+	for id, fs := range w.FuncGlobals {
+		fmt.Printf("FuncGlobals %s ->\n", id)
+		for _, f := range fs {
+			f.Print()
+		}
+	}
+
+	fmt.Println()
+	fmt.Println("Enum2String tables or func don't know for now")
+	for k, v := range w.Enum2Strings {
+		fmt.Printf("%s : %s\n", k, v)
+	}
+
+	fmt.Println()
+	fmt.Println("Custom Template Expansions ->")
+	for id, t := range w.Customs {
+		fmt.Println("Id : ", id)
+		fmt.Println(t)
+	}
+
+	fmt.Println()
+	spew.Dump(w.C)
+	spew.Dump(w.H)
+	spew.Dump(w.Cpp)
+	spew.Dump(w.Hpp)
+
+	fmt.Println(Yellow)
+	fmt.Println("Type Map ->")
+	for k, v := range w.TypeMap {
+		fmt.Printf(" %s : %s\n", k, v)
+	}
+
+	fmt.Print(Reset)
+
+}
+
+//  (section) -------------------------------------------------------- : writables print helpers  //
+
+//  expression evaluation : ---------------------------------------------------------- (section)  //
+
+func (e *Expression) evaluate(idx uint32, w *GencWritables) string {
+	uppercase := func(s string) string {
+		return strings.ToUpper(s)
+	}
+
+	lowercase := func(s string) string {
+		return strings.ToLower(s)
+	}
+
+	// hello_world -> HelloWorld
+	snake2pascal := func(s string) string {
+		parts := strings.Split(s, "_")
+		for i, p := range parts {
+			if len(p) > 0 {
+				parts[i] = strings.ToUpper(p[:1]) + p[1:]
+			}
+		}
+		return strings.Join(parts, "")
+	}
+
+	// hello_world -> helloWorld
+	snake2camel := func(s string) string {
+		parts := strings.Split(s, "_")
+		for i, p := range parts {
+			if i == 0 {
+				parts[i] = strings.ToLower(p)
+			} else if len(p) > 0 {
+				parts[i] = strings.ToUpper(p[:1]) + p[1:]
+			}
+		}
+		return strings.Join(parts, "")
+	}
+
+	// HelloWorld -> hello_world
+	pascal2snake := func(s string) string {
+		var b strings.Builder
+		for i, r := range s {
+			if unicode.IsUpper(r) && i > 0 {
+				b.WriteRune('_')
+			}
+			b.WriteRune(unicode.ToLower(r))
+		}
+		return b.String()
+	}
+
+	// HelloWorld -> helloWorld
+	pascal2camel := func(s string) string {
+		if len(s) == 0 {
+			return s
+		}
+		return strings.ToLower(s[:1]) + s[1:]
+	}
+
+	// helloWorld -> hello_world
+	camel2snake := func(s string) string {
+		var b strings.Builder
+		for i, r := range s {
+			if unicode.IsUpper(r) && i > 0 {
+				b.WriteRune('_')
+			}
+			b.WriteRune(unicode.ToLower(r))
+		}
+		return b.String()
+	}
+
+	// helloWorld -> HelloWorld
+	camel2pascal := func(s string) string {
+		if len(s) == 0 {
+			return s
+		}
+		return strings.ToUpper(s[:1]) + s[1:]
+	}
+
+	var res string
+
+	switch e.typ {
+
+	case ET_Value:
+		return e.value
+
+	case ET_Array:
+		log.Fatalf("This expresssion shouldn't have been a Array type %v", e)
+
+	case ET_ColId:
+		if t, ok := w.curr_req[e.value]; ok {
+			return t.rows[idx][e.arr[0].value]
+		} else {
+			log.Fatalf("This table alias is not present in the current requirement cache %s, %v",
+				e.value, w.curr_req)
+		}
+
+	case ET_PrimIdAlias:
+
+	case ET_OP_Concat:
+		res := ""
+		for _, exp := range e.arr {
+			res = res + exp.evaluate(idx, w)
+		}
+		return res
+
+	case ET_OP_Uppercase:
+		return uppercase(e.arr[0].evaluate(idx, w))
+
+	case ET_OP_Lowercase:
+		return lowercase(e.arr[0].evaluate(idx, w))
+
+	case ET_OP_Snake2Pascal:
+		return snake2pascal(e.arr[0].evaluate(idx, w))
+
+	case ET_OP_Snake2Camel:
+		return snake2camel(e.arr[0].evaluate(idx, w))
+
+	case ET_OP_Pascal2Snake:
+		return pascal2snake(e.arr[0].evaluate(idx, w))
+
+	case ET_OP_Pascal2Camel:
+		return pascal2camel(e.arr[0].evaluate(idx, w))
+
+	case ET_OP_Camel2Snake:
+		return camel2snake(e.arr[0].evaluate(idx, w))
+
+	case ET_OP_Camel2Pascal:
+		return camel2pascal(e.arr[0].evaluate(idx, w))
+
+	}
+
+	return res
+}
+
+func (e *Expression) evaluateArray(w *GencWritables) []string {
+
+	if e.typ != ET_Array {
+		log.Panicf("This is not a Array Expression %s", e.typ)
+	}
+
+	res := make([]string, 0)
+
+	for _, exp := range e.arr {
+		res = append(res, exp.evaluate(0, w))
+	}
+
+	return res
+}
+
+//  (section) ---------------------------------------------------------- : expression evaluation  //
+
+// gen writables : ------------------------------------------------------------------ (section)  //
+
+func (w *GencWritables) genTable(p Primitive) Table {
+	table := Table{
+		rows: make([]map[string]string, 0),
+	}
+
+	for i := range 2 {
+		field := p.fields[i]
+		switch field.typ {
+		case FT_Table_Cols:
+			{
+				for _, exp := range field.val.arr {
+					table.cols = append(table.cols, exp.evaluate(0, w))
+				}
+			}
+
+		case FT_Table_Rows:
+			{
+				for _, exp := range field.val.arr {
+					row := exp.evaluateArray(w)
+
+					t_row := make(map[string]string)
+					for i, row_elem := range row {
+						t_row[table.cols[i]] = row_elem
+					}
+
+					table.rows = append(
+						table.rows,
+						t_row,
+					)
+				}
+			}
+
+		default:
+			log.Panicf("This is invalid field type for table %s", field.typ)
+		}
+	}
+
+	return table
+}
+
+func (w *GencWritables) generateRequiresTable(req SubPrimitive) {
+
+	tables := make(map[string]Table)
+	var ln uint32 = math.MaxUint32
+
+	for _, exp := range req.args {
+		for _, exp := range exp.arr {
+			table_id := exp.arr[0].evaluate(0, w)
+			table_alias := exp.arr[1].evaluate(0, w)
+
+			if t, ok := w.Tables[table_id]; ok {
+				tables[table_alias] = t
+				ln = min(ln, uint32(len(t.rows)))
+			} else {
+				log.Fatalf("This table id is not currently present in the list of tables %s => %v",
+					table_id, w.Tables)
+			}
+		}
+	}
+
+	w.curr_req = tables
+	w.req_len = ln
+}
+
+func (w *GencWritables) genEnum(p Primitive) (Enum, Table) {
+	var enum Enum
+
+	var req SubPrimitive
+	for _, s_prim := range p.sub_prims {
+		if s_prim.typ == ST_Requires {
+			req = s_prim
+		}
+	}
+	w.generateRequiresTable(req)
+
+	for _, field := range p.fields {
+		switch field.typ {
+
+		case FT_Enum_ValueName:
+			for idx := range w.req_len {
+				enum.value_names = append(enum.value_names, field.val.evaluate(idx, w))
+			}
+
+		default:
+			log.Fatalf("Unkown Field found")
+		}
+	}
+
+	enum_t_rows := make([]map[string]string, 0)
+	for _, value_name := range enum.value_names {
+		enum_t_rows = append(enum_t_rows, map[string]string{
+			"value_name": value_name,
+		})
+	}
+	enum_table := Table{
+		cols: []string{"value_name"},
+		rows: enum_t_rows,
+	}
+
+	return enum, enum_table
+}
+
+func (w *GencWritables) genEnum2String(p Primitive) Enum2String {
+
+	res := ""
+	for _, field := range p.fields {
+		switch field.typ {
+
+		case FT_Enum2String_Enum:
+			for idx := range w.req_len {
+				res = field.val.evaluate(idx, w)
+			}
+
+		default:
+			log.Fatalf("Unkown Field found")
+		}
+	}
+
+	if t, ok := w.TypeMap[res]; ok {
+		if t != PT_Enum {
+			log.Fatalf("This enum prim id provided doesnt point to a enum primitive %s", res)
+		}
+	}
+
+	return Enum2String(res)
+}
+
+func (w *GencWritables) genStruct(p Primitive) (Struct, Table) {
+
+	var req SubPrimitive
+	for _, s_prim := range p.sub_prims {
+		if s_prim.typ == ST_Requires {
+			req = s_prim
+		}
+	}
+	w.generateRequiresTable(req)
+
+	struc := Struct{}
+
+	for _, field := range p.fields {
+		switch field.typ {
+
+		case FT_Struct_FieldTypes:
+			for idx := range w.req_len {
+				struc.field_types = append(struc.field_types, field.val.evaluate(idx, w))
+			}
+
+		case FT_Struct_FieldIds:
+			for idx := range w.req_len {
+				struc.field_ids = append(struc.field_ids, field.val.evaluate(idx, w))
+			}
+
+		default:
+			log.Fatalf("Unkown Field found")
+		}
+	}
+
+	struct_table := Table{
+		cols: []string{"field_types", "field_ids"},
+	}
+	for idx := range len(struc.field_types) {
+		struct_table.rows = append(struct_table.rows, map[string]string{
+			"field_types": struc.field_types[idx],
+			"field_ids":   struc.field_ids[idx],
+		})
+	}
+	return struc, struct_table
+}
+
+func (w *GencWritables) genFuncTypes(p Primitive) ([]FuncType, Table) {
+
+	var req SubPrimitive
+	for _, s_prim := range p.sub_prims {
+		if s_prim.typ == ST_Requires {
+			req = s_prim
+		}
+	}
+	w.generateRequiresTable(req)
+
+	func_types := make([]FuncType, w.req_len)
+
+	for _, field := range p.fields {
+		switch field.typ {
+
+		case FT_FuncTypes_Args:
+			for idx := range w.req_len {
+				func_types[idx].args = field.val.evaluate(idx, w)
+			}
+
+		case FT_FuncTypes_Identifier:
+			for idx := range w.req_len {
+				func_types[idx].identifier = field.val.evaluate(idx, w)
+			}
+
+		case FT_FuncTypes_Ret:
+			for idx := range w.req_len {
+				func_types[idx].ret = field.val.evaluate(idx, w)
+			}
+		}
+	}
+
+	func_types_table := Table{
+		cols: []string{"args", "identifier", "ret"},
+	}
+	for _, ft := range func_types {
+		func_types_table.rows = append(func_types_table.rows, map[string]string{
+			"args":       ft.args,
+			"identifier": ft.identifier,
+			"ret":        ft.ret,
+		})
+	}
+
+	return func_types, func_types_table
+}
+
+func (w *GencWritables) genFuncGlobals(p Primitive) ([]FuncGlobal, Table) {
+
+	var req SubPrimitive
+	for _, s_prim := range p.sub_prims {
+		if s_prim.typ == ST_Requires {
+			req = s_prim
+		}
+	}
+	w.generateRequiresTable(req)
+
+	func_globals := make([]FuncGlobal, w.req_len)
+	for _, field := range p.fields {
+		switch field.typ {
+
+		case FT_FuncGlobals_Typ:
+			for idx := range w.req_len {
+				func_globals[idx].typ = field.val.evaluate(idx, w)
+			}
+
+		case FT_FuncGlobals_Identifier:
+			for idx := range w.req_len {
+				func_globals[idx].identifier = field.val.evaluate(idx, w)
+			}
+		}
+	}
+
+	func_globals_table := Table{
+		cols: []string{"type", "identifier"},
+	}
+	for _, ft := range func_globals {
+		func_globals_table.rows = append(func_globals_table.rows, map[string]string{
+			"type":       ft.typ,
+			"identifier": ft.identifier,
+		})
+	}
+
+	return func_globals, func_globals_table
+}
+
+func (w *GencWritables) expandCustom(p Primitive) Custom {
+
+	var req SubPrimitive
+	for _, s_prim := range p.sub_prims {
+		if s_prim.typ == ST_Requires {
+			req = s_prim
+		}
+	}
+	w.generateRequiresTable(req)
+
+	res := strings.Builder{}
+	field := p.fields[0]
+
+	if field.typ == FT_Custom_Template {
+
+		temp := field.val.evaluate(0, w)
+		tmpl := template.Must(template.New("custom").Parse(temp))
+
+		data := make([]map[string]map[string]string, w.req_len)
+		for idx := range data {
+			dat := make(map[string]map[string]string)
+			for k, v := range w.curr_req {
+				dat[k] = v.rows[idx]
+			}
+			data[idx] = dat
+		}
+
+		err := tmpl.Execute(&res, data)
+
+		if err != nil {
+			fmt.Print(
+				Red,
+				"Some error occured executing custom template \n",
+				temp,
+				err,
+				"\n",
+				Reset)
+		}
+	}
+
+	return Custom(res.String())
+}
+
+func (w *GencWritables) extracPrimsForGen(p Primitive) []string {
+	res := p.fields[0].val.evaluateArray(w)
+	for _, r := range res {
+		if _, ok := w.TypeMap[r]; !ok {
+			log.Fatalf("This is not an parsed primitive, not ready for generation %s\n", r)
+		}
+	}
+	return res
+}
+
+func GenerateWritables(genc *GenC) GencWritables {
+
+	//  gen writables core : --------------------------------------------------------- (section)  //
+	wrtb := GencWritables{
+		Tables:       make(map[string]Table),
+		Enums:        make(map[string]Enum),
+		Enum2Strings: make(map[string]Enum2String),
+		Structs:      make(map[string]Struct),
+		FuncTypes:    make(map[string][]FuncType),
+		FuncGlobals:  make(map[string][]FuncGlobal),
+		Customs:      make(map[string]Custom),
+
+		TypeMap: make(map[string]PrimitiveType),
+	}
+
+	for _, id := range genc.Ids {
+		prim := genc.Primitives[id]
+
+		switch prim.Typ {
+
+		case PT_Table:
+			{
+				wrtb.Tables[id] = wrtb.genTable(prim)
+				wrtb.TypeMap[id] = PT_Table
+			}
+
+		case PT_Enum:
+			{
+				wrtb.Enums[id], wrtb.Tables[id] = wrtb.genEnum(prim)
+				wrtb.TypeMap[id] = PT_Enum
+			}
+
+		case PT_Enum2String:
+			{
+				wrtb.Enum2Strings[id] = wrtb.genEnum2String(prim)
+				wrtb.TypeMap[id] = PT_Enum2String
+			}
+
+		case PT_Struct:
+			{
+				wrtb.Structs[id], wrtb.Tables[id] = wrtb.genStruct(prim)
+				wrtb.TypeMap[id] = PT_Struct
+			}
+
+		case PT_FuncTypes:
+			{
+				wrtb.FuncTypes[id], wrtb.Tables[id] = wrtb.genFuncTypes(prim)
+				wrtb.TypeMap[id] = PT_FuncTypes
+			}
+
+		case PT_FuncGlobals:
+			{
+				wrtb.FuncGlobals[id], wrtb.Tables[id] = wrtb.genFuncGlobals(prim)
+				wrtb.TypeMap[id] = PT_FuncGlobals
+			}
+
+		case PT_Custom:
+			{
+				wrtb.Customs[id] = wrtb.expandCustom(prim)
+				wrtb.TypeMap[id] = PT_Custom
+			}
+
+		case PT_GenCFile:
+			{
+				if !wrtb.C.set {
+
+					wrtb.C.set = true
+					wrtb.C.typ = GFT_C
+					wrtb.C.name = id
+					wrtb.C.prim_list = wrtb.extracPrimsForGen(prim)
+				} else {
+					log.Fatalf("This c file is already set")
+				}
+			}
+
+		case PT_GenHFile:
+			{
+				if !wrtb.H.set {
+
+					wrtb.H.set = true
+					wrtb.H.typ = GFT_H
+					wrtb.H.name = id
+					wrtb.H.prim_list = wrtb.extracPrimsForGen(prim)
+				} else {
+					log.Fatalf("This h file is already set")
+				}
+			}
+
+		case PT_GenCPPFile:
+			{
+				if !wrtb.Cpp.set {
+
+					wrtb.Cpp.set = true
+					wrtb.Cpp.typ = GFT_CPP
+					wrtb.Cpp.name = id
+					wrtb.Cpp.prim_list = wrtb.extracPrimsForGen(prim)
+				} else {
+					log.Fatalf("This cpp file is already set")
+				}
+			}
+
+		case PT_GenHPPFile:
+			{
+				if !wrtb.Hpp.set {
+					wrtb.Hpp.set = true
+					wrtb.Hpp.typ = GFT_HPP
+					wrtb.Hpp.name = id
+					wrtb.Hpp.prim_list = wrtb.extracPrimsForGen(prim)
+
+				} else {
+					log.Fatalf("This hpp file is already set")
+				}
+			}
+
+		default:
+			{
+				log.Fatalf("This ain't no primitive %s", string(genc.Primitives[id].Typ))
+			}
+
+		}
+	}
+
+	return wrtb
+}
+
+//  (section) ------------------------------------------------------------------ : gen writables  //

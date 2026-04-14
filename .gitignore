@@ -1,4 +1,5 @@
 *.exe
+.vscode/
 ntdocs*
 generated/
 test.*

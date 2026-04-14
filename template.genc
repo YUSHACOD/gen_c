@@ -26,12 +26,8 @@ $rows =
 	$enum = FuncKind 
 }
 
-@struct(FuncOps) {
-	$field_types = { FuncKind int int }
-	$field_ids   = { kind op1 op2 }
-}
 
-@func_types(OperationType) {
+@func_types(OperationTypes) {
     @requires(Funcs f)
 
     $identifier = #uppercase(f.name)
@@ -39,19 +35,29 @@ $rows =
     $ret        = #snake2pascal(f.ret)
 }
 
+
+@struct(FuncOps) {
+    @requires(OperationTypes t, Funcs f)
+
+	$field_types = #concat(t.identifier, `*`)
+	$field_ids   = #lowercase(f.name)
+}
+
 @func_globals(OperationGlobals) {
-    @requires(OperationType ot, Funcs f)
+    @requires(OperationTypes ot, Funcs f)
 
     $identifier = f.name
-    $type = ot.type_name
+    $type = ot.identifier
 }
 
 @custom(OperationFuncLoader) {
     @requires(OperationGlobals og, OperationTypes ot)
 
     $template = `
-internal  void load_funcs() {
-    {{range .og}} {{og.identifier}} = ({{ot.identifier}} *)wgl_load("{{og.identifier}}");{{end}}
+internal void load_funcs() {
+
+    {{range .}} {{.og.identifier}} = ({{.ot.identifier}} *)wgl_load("{{.og.identifier}}");
+    {{end}}
 }
     `
 }
@@ -75,9 +81,9 @@ internal  void load_funcs() {
 }
 
 
-@genhpp(math_ops4) {
+@gencpp(math_ops4) {
 	$primitives = {
 		OperationGlobals
-		OperationType
+		OperationTypes
 	}
 }

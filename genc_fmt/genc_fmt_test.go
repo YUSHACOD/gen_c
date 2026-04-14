@@ -21,11 +21,11 @@ func Test(test *testing.T) {
 
 	t := gf.NewTokenizer(string(input))
 	genc := gf.ParseGenc(t)
-	for k,v  := range genc.Primitives {
-		fmt.Println("Primitive Id: ", k)
-		fmt.Println("Primitive Val:")
-		v.Print()
-	}
+	// for k,v  := range genc.Primitives {
+	// 	fmt.Println("Primitive Id: ", k)
+	// 	fmt.Println("Primitive Val:")
+	// 	v.Print()
+	// }
 
 	w := gf.GenerateWritables(genc)
 	w.Print()
