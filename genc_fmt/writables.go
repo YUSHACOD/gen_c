@@ -16,10 +16,6 @@ import (
 	"github.com/olekukonko/tablewriter"
 )
 
-//  templates : ---------------------------------------------------------------------- (section)  //
-
-//  (section) ---------------------------------------------------------------------- : templates  //
-
 //  write data structs : ------------------------------------------------------------- (section)  //
 
 type Table struct {
@@ -28,7 +24,7 @@ type Table struct {
 }
 
 type Enum struct {
-	value_names []string
+	Value_names []string
 }
 
 type Struct struct {
@@ -130,7 +126,7 @@ func (t Table) Print() {
 
 func (e Enum) Print() {
 	fmt.Println("Value: ")
-	for _, s := range e.value_names {
+	for _, s := range e.Value_names {
 		fmt.Println(s)
 	}
 }
@@ -221,79 +217,94 @@ func (w GencWritables) Print() {
 
 //  expression evaluation : ---------------------------------------------------------- (section)  //
 
+func uppercase(s string) string {
+	return strings.ToUpper(s)
+}
+
+func lowercase(s string) string {
+	return strings.ToLower(s)
+}
+
+// hello_world -> HelloWorld
+func snake2pascal(s string) string {
+	parts := strings.Split(s, "_")
+	for i, p := range parts {
+		if len(p) > 0 {
+			parts[i] = strings.ToUpper(p[:1]) + p[1:]
+		}
+	}
+	return strings.Join(parts, "")
+}
+
+// hello_world -> helloWorld
+func snake2camel(s string) string {
+	parts := strings.Split(s, "_")
+	for i, p := range parts {
+		if i == 0 {
+			parts[i] = strings.ToLower(p)
+		} else if len(p) > 0 {
+			parts[i] = strings.ToUpper(p[:1]) + p[1:]
+		}
+	}
+	return strings.Join(parts, "")
+}
+
+// HelloWorld -> hello_world
+func pascal2snake(s string) string {
+	var b strings.Builder
+	for i, r := range s {
+		if unicode.IsUpper(r) && i > 0 {
+			b.WriteRune('_')
+		}
+		b.WriteRune(unicode.ToLower(r))
+	}
+	return b.String()
+}
+
+// HelloWorld -> helloWorld
+func pascal2camel(s string) string {
+	if len(s) == 0 {
+		return s
+	}
+	return strings.ToLower(s[:1]) + s[1:]
+}
+
+// helloWorld -> hello_world
+func camel2snake(s string) string {
+	var b strings.Builder
+	for i, r := range s {
+		if unicode.IsUpper(r) && i > 0 {
+			b.WriteRune('_')
+		}
+		b.WriteRune(unicode.ToLower(r))
+	}
+	return b.String()
+}
+
+// helloWorld -> HelloWorld
+func camel2pascal(s string) string {
+	if len(s) == 0 {
+		return s
+	}
+	return strings.ToUpper(s[:1]) + s[1:]
+}
+
+var OpMap template.FuncMap
+
+func CompFuncMap() {
+	OpMap = template.FuncMap{
+		"uppercase":     uppercase,
+		"lowercaseorld": lowercase,
+		"snake2pascal":  snake2pascal,
+		"snake2camel":   snake2camel,
+		"pascal2snake":  pascal2snake,
+		"pascal2camel":  pascal2camel,
+		"camel2snake":   camel2snake,
+		"camel2pascal":  camel2pascal,
+	}
+}
+
 func (e *Expression) evaluate(idx uint32, w *GencWritables) string {
-	uppercase := func(s string) string {
-		return strings.ToUpper(s)
-	}
-
-	lowercase := func(s string) string {
-		return strings.ToLower(s)
-	}
-
-	// hello_world -> HelloWorld
-	snake2pascal := func(s string) string {
-		parts := strings.Split(s, "_")
-		for i, p := range parts {
-			if len(p) > 0 {
-				parts[i] = strings.ToUpper(p[:1]) + p[1:]
-			}
-		}
-		return strings.Join(parts, "")
-	}
-
-	// hello_world -> helloWorld
-	snake2camel := func(s string) string {
-		parts := strings.Split(s, "_")
-		for i, p := range parts {
-			if i == 0 {
-				parts[i] = strings.ToLower(p)
-			} else if len(p) > 0 {
-				parts[i] = strings.ToUpper(p[:1]) + p[1:]
-			}
-		}
-		return strings.Join(parts, "")
-	}
-
-	// HelloWorld -> hello_world
-	pascal2snake := func(s string) string {
-		var b strings.Builder
-		for i, r := range s {
-			if unicode.IsUpper(r) && i > 0 {
-				b.WriteRune('_')
-			}
-			b.WriteRune(unicode.ToLower(r))
-		}
-		return b.String()
-	}
-
-	// HelloWorld -> helloWorld
-	pascal2camel := func(s string) string {
-		if len(s) == 0 {
-			return s
-		}
-		return strings.ToLower(s[:1]) + s[1:]
-	}
-
-	// helloWorld -> hello_world
-	camel2snake := func(s string) string {
-		var b strings.Builder
-		for i, r := range s {
-			if unicode.IsUpper(r) && i > 0 {
-				b.WriteRune('_')
-			}
-			b.WriteRune(unicode.ToLower(r))
-		}
-		return b.String()
-	}
-
-	// helloWorld -> HelloWorld
-	camel2pascal := func(s string) string {
-		if len(s) == 0 {
-			return s
-		}
-		return strings.ToUpper(s[:1]) + s[1:]
-	}
-
 	var res string
 
 	switch e.typ {
@@ -449,7 +460,7 @@ func (w *GencWritables) genEnum(p Primitive) (Enum, Table) {
 
 		case FT_Enum_ValueName:
 			for idx := range w.req_len {
-				enum.value_names = append(enum.value_names, field.val.evaluate(idx, w))
+				enum.Value_names = append(enum.Value_names, field.val.evaluate(idx, w))
 			}
 
 		default:
@@ -458,7 +469,7 @@ func (w *GencWritables) genEnum(p Primitive) (Enum, Table) {
 	}
 
 	enum_t_rows := make([]map[string]string, 0)
-	for _, value_name := range enum.value_names {
+	for _, value_name := range enum.Value_names {
 		enum_t_rows = append(enum_t_rows, map[string]string{
 			"value_name": value_name,
 		})
@@ -639,7 +650,7 @@ func (w *GencWritables) expandCustom(p Primitive) Custom {
 	if field.typ == FT_Custom_Template {
 
 		temp := field.val.evaluate(0, w)
-		tmpl := template.Must(template.New("custom").Parse(temp))
+		tmpl := template.Must(template.New("custom").Funcs(OpMap).Parse(temp))
 
 		data := make([]map[string]map[string]string, w.req_len)
 		for idx := range data {
@@ -677,6 +688,8 @@ func (w *GencWritables) extracPrimsForGen(p Primitive) []string {
 }
 
 func GenerateWritables(genc *GenC) GencWritables {
+
+	CompFuncMap()
 
 	//  gen writables core : --------------------------------------------------------- (section)  //
 	wrtb := GencWritables{
