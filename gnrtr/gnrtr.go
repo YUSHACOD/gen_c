@@ -20,21 +20,29 @@ typedef enum {
 `,
 
 	gf.PT_Enum2String: `
-const {{.id}}_table = {
+const char* {{.Id}}_to_string[] = {
+    {{range .ValueNames}} "{{.}}",
+    {{end -}}
 };
 `,
 
 	gf.PT_Struct: `
+typedef struct {
+    {{range .Fields}}{{.Type}} {{.Id}};
+    {{end -}}
+} {{.Id}};
 `,
 
 	gf.PT_FuncTypes: `
+{{range .}}typedef {{.Ret}} {{.Name}}({{.Args}});
+{{end -}}
 `,
 
 	gf.PT_FuncGlobals: `
+{{range .}}global {{.Type}}* {{.Name}};
+{{end -}}
 `,
 
-	gf.PT_Custom: `
-`,
 }
 
 var Templates map[gf.PrimitiveType]*template.Template = map[gf.PrimitiveType]*template.Template{}
@@ -45,15 +53,10 @@ func compTempaltes() {
 
 	for _, s := range []gf.PrimitiveType{
 		gf.PT_Enum,
-		// gf.PT_Enum2String,
-		// gf.PT_Struct,
-		// gf.PT_FuncTypes,
-		// gf.PT_FuncGlobals,
-		// gf.PT_Custom,
-		// gf.PT_GenCFile,
-		// gf.PT_GenHFile,
-		// gf.PT_GenCPPFile,
-		// gf.PT_GenHPPFile,
+		gf.PT_Enum2String,
+		gf.PT_Struct,
+		gf.PT_FuncTypes,
+		gf.PT_FuncGlobals,
 	} {
 		t, err := template.New(string(s)).Parse(TemplateString[s])
 		if err != nil {

@@ -19,8 +19,8 @@ import (
 //  write data structs : ------------------------------------------------------------- (section)  //
 
 type Table struct {
-	cols []string
-	rows []map[string]string
+	Cols []string
+	Rows []map[string]string
 }
 
 type Enum struct {
@@ -28,19 +28,19 @@ type Enum struct {
 }
 
 type Struct struct {
-	field_types []string
-	field_ids   []string
+	Types []string
+	Ids   []string
 }
 
 type FuncType struct {
-	identifier string
-	ret        string
-	args       string
+	Name string
+	Ret  string
+	Args string
 }
 
 type FuncGlobal struct {
-	typ        string
-	identifier string
+	Type string
+	Name string
 }
 
 type GenFileType string
@@ -81,7 +81,8 @@ type GencWritables struct {
 	Cpp GenFile
 	Hpp GenFile
 
-	TypeMap map[string]PrimitiveType
+	TypeMap   map[string]PrimitiveType
+	PrimOrder []string
 }
 
 type WriteType string
@@ -103,18 +104,18 @@ type WriteCommand struct {
 // writables print helpers : -------------------------------------------------------- (section)  //
 func (t Table) Print() {
 
-	colKeys := t.cols
+	colKeys := t.Cols
 
 	table := tablewriter.NewWriter(os.Stdout)
 	table.Header(colKeys)
 
-	for i := range len(t.rows) {
+	for i := range len(t.Rows) {
 
 		row := make([]string, len(colKeys))
 
 		for j, key := range colKeys {
-			if i < len(t.rows) {
-				row[j] = t.rows[i][key]
+			if i < len(t.Rows) {
+				row[j] = t.Rows[i][key]
 			}
 		}
 
@@ -133,17 +134,17 @@ func (e Enum) Print() {
 
 func (s Struct) Print() {
 	fmt.Println("Struct Fields: ")
-	for idx := range s.field_types {
-		fmt.Printf("type: %s, identifier: %s\n", s.field_types[idx], s.field_ids[idx])
+	for idx := range s.Types {
+		fmt.Printf("type: %s, identifier: %s\n", s.Types[idx], s.Ids[idx])
 	}
 }
 
 func (f FuncType) Print() {
-	fmt.Printf("Return: %s,  Identifier: %s, Args: %s\n", f.ret, f.identifier, f.args)
+	fmt.Printf("Return: %s,  Identifier: %s, Args: %s\n", f.Ret, f.Name, f.Args)
 }
 
 func (f FuncGlobal) Print() {
-	fmt.Printf("Type: %s,  Identifier: %s\n", f.typ, f.identifier)
+	fmt.Printf("Type: %s,  Identifier: %s\n", f.Type, f.Name)
 }
 
 func (w GencWritables) Print() {
@@ -317,7 +318,7 @@ func (e *Expression) evaluate(idx uint32, w *GencWritables) string {
 
 	case ET_ColId:
 		if t, ok := w.curr_req[e.value]; ok {
-			return t.rows[idx][e.arr[0].value]
+			return t.Rows[idx][e.arr[0].value]
 		} else {
 			log.Fatalf("This table alias is not present in the current requirement cache %s, %v",
 				e.value, w.curr_req)
@@ -382,7 +383,7 @@ func (e *Expression) evaluateArray(w *GencWritables) []string {
 
 func (w *GencWritables) genTable(p Primitive) Table {
 	table := Table{
-		rows: make([]map[string]string, 0),
+		Rows: make([]map[string]string, 0),
 	}
 
 	for i := range 2 {
@@ -391,7 +392,7 @@ func (w *GencWritables) genTable(p Primitive) Table {
 		case FT_Table_Cols:
 			{
 				for _, exp := range field.val.arr {
-					table.cols = append(table.cols, exp.evaluate(0, w))
+					table.Cols = append(table.Cols, exp.evaluate(0, w))
 				}
 			}
 
@@ -402,11 +403,11 @@ func (w *GencWritables) genTable(p Primitive) Table {
 
 					t_row := make(map[string]string)
 					for i, row_elem := range row {
-						t_row[table.cols[i]] = row_elem
+						t_row[table.Cols[i]] = row_elem
 					}
 
-					table.rows = append(
-						table.rows,
+					table.Rows = append(
+						table.Rows,
 						t_row,
 					)
 				}
@@ -432,7 +433,7 @@ func (w *GencWritables) generateRequiresTable(req SubPrimitive) {
 
 			if t, ok := w.Tables[table_id]; ok {
 				tables[table_alias] = t
-				ln = min(ln, uint32(len(t.rows)))
+				ln = min(ln, uint32(len(t.Rows)))
 			} else {
 				log.Fatalf("This table id is not currently present in the list of tables %s => %v",
 					table_id, w.Tables)
@@ -475,8 +476,8 @@ func (w *GencWritables) genEnum(p Primitive) (Enum, Table) {
 		})
 	}
 	enum_table := Table{
-		cols: []string{"value_name"},
-		rows: enum_t_rows,
+		Cols: []string{"value_name"},
+		Rows: enum_t_rows,
 	}
 
 	return enum, enum_table
@@ -524,12 +525,12 @@ func (w *GencWritables) genStruct(p Primitive) (Struct, Table) {
 
 		case FT_Struct_FieldTypes:
 			for idx := range w.req_len {
-				struc.field_types = append(struc.field_types, field.val.evaluate(idx, w))
+				struc.Types = append(struc.Types, field.val.evaluate(idx, w))
 			}
 
 		case FT_Struct_FieldIds:
 			for idx := range w.req_len {
-				struc.field_ids = append(struc.field_ids, field.val.evaluate(idx, w))
+				struc.Ids = append(struc.Ids, field.val.evaluate(idx, w))
 			}
 
 		default:
@@ -538,12 +539,12 @@ func (w *GencWritables) genStruct(p Primitive) (Struct, Table) {
 	}
 
 	struct_table := Table{
-		cols: []string{"field_types", "field_ids"},
+		Cols: []string{"field_types", "field_ids"},
 	}
-	for idx := range len(struc.field_types) {
-		struct_table.rows = append(struct_table.rows, map[string]string{
-			"field_types": struc.field_types[idx],
-			"field_ids":   struc.field_ids[idx],
+	for idx := range len(struc.Types) {
+		struct_table.Rows = append(struct_table.Rows, map[string]string{
+			"field_types": struc.Types[idx],
+			"field_ids":   struc.Ids[idx],
 		})
 	}
 	return struc, struct_table
@@ -566,29 +567,29 @@ func (w *GencWritables) genFuncTypes(p Primitive) ([]FuncType, Table) {
 
 		case FT_FuncTypes_Args:
 			for idx := range w.req_len {
-				func_types[idx].args = field.val.evaluate(idx, w)
+				func_types[idx].Args = field.val.evaluate(idx, w)
 			}
 
 		case FT_FuncTypes_Identifier:
 			for idx := range w.req_len {
-				func_types[idx].identifier = field.val.evaluate(idx, w)
+				func_types[idx].Name = field.val.evaluate(idx, w)
 			}
 
 		case FT_FuncTypes_Ret:
 			for idx := range w.req_len {
-				func_types[idx].ret = field.val.evaluate(idx, w)
+				func_types[idx].Ret = field.val.evaluate(idx, w)
 			}
 		}
 	}
 
 	func_types_table := Table{
-		cols: []string{"args", "identifier", "ret"},
+		Cols: []string{"args", "identifier", "ret"},
 	}
 	for _, ft := range func_types {
-		func_types_table.rows = append(func_types_table.rows, map[string]string{
-			"args":       ft.args,
-			"identifier": ft.identifier,
-			"ret":        ft.ret,
+		func_types_table.Rows = append(func_types_table.Rows, map[string]string{
+			"args":       ft.Args,
+			"identifier": ft.Name,
+			"ret":        ft.Ret,
 		})
 	}
 
@@ -611,23 +612,23 @@ func (w *GencWritables) genFuncGlobals(p Primitive) ([]FuncGlobal, Table) {
 
 		case FT_FuncGlobals_Typ:
 			for idx := range w.req_len {
-				func_globals[idx].typ = field.val.evaluate(idx, w)
+				func_globals[idx].Type = field.val.evaluate(idx, w)
 			}
 
 		case FT_FuncGlobals_Identifier:
 			for idx := range w.req_len {
-				func_globals[idx].identifier = field.val.evaluate(idx, w)
+				func_globals[idx].Name = field.val.evaluate(idx, w)
 			}
 		}
 	}
 
 	func_globals_table := Table{
-		cols: []string{"type", "identifier"},
+		Cols: []string{"type", "identifier"},
 	}
 	for _, ft := range func_globals {
-		func_globals_table.rows = append(func_globals_table.rows, map[string]string{
-			"type":       ft.typ,
-			"identifier": ft.identifier,
+		func_globals_table.Rows = append(func_globals_table.Rows, map[string]string{
+			"type":       ft.Type,
+			"identifier": ft.Name,
 		})
 	}
 
@@ -656,7 +657,7 @@ func (w *GencWritables) expandCustom(p Primitive) Custom {
 		for idx := range data {
 			dat := make(map[string]map[string]string)
 			for k, v := range w.curr_req {
-				dat[k] = v.rows[idx]
+				dat[k] = v.Rows[idx]
 			}
 			data[idx] = dat
 		}
@@ -707,6 +708,7 @@ func GenerateWritables(genc *GenC) GencWritables {
 	for _, id := range genc.Ids {
 		prim := genc.Primitives[id]
 
+		wrtb.PrimOrder = append(wrtb.PrimOrder, id)
 		switch prim.Typ {
 
 		case PT_Table:
