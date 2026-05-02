@@ -1,15 +1,28 @@
 
 @table(Funcs) {
 
-$cols = { name type_name args ret }
+$cols = { ret name args }
 
 >> comment 1
 $rows = 
 { 
 						>> comment3
-    { Add               add_op_ft                 `int x, int y`        int }
-    { Sub               sub_op_ft                 `int x, int y`        int }
-    { Mul               mul_op_ft                 `int x, int y`        int }
+  
+	{ BOOL		 wgl_choose_pixel_format_arb		`(HDC, const int*, const FLOAT*, UINT, int*, UINT*)`                                }
+	{ HGLRC		 wgl_create_context_attribs_arb		`(HDC, HGLRC, const int*)`                                                          }
+	{ BOOL		 wgl_swap_interval_ext				`(int interval)`                                                                    }
+	{ GLuint	 gl_create_shader					`(GLenum type)`                                                                     }
+	{ void		 gl_shader_source					`(GLuint shader, GLsizei count, const GLchar* const* string, const GLint* length)`  }
+	{ void		 gl_compile_shader					`(GLuint shader)`                                                                   }
+	{ GLuint	 gl_create_program					`(void)`                                                                            }
+	{ void		 gl_attach_shader					`(GLuint program, GLuint shader)`                                                   }
+	{ void		 gl_link_program					`(GLuint program)`                                                                  }
+	{ void		 gl_delete_shader					`(GLuint shader)`                                                                   }
+	{ void		 gl_delete_program					`(GLuint program)`                                                                  }
+	{ void		 gl_create_vertex_arrays			`(GLsizei n, GLuint* arrays)`                                                       }
+	{ void		 gl_bind_vertex_array				`(GLuint array)`                                                                    }
+	{ void		 gl_delete_vertex_arrays			`(GLsizei n, const GLuint* arrays)`                                                 }
+
 }
 
 }
@@ -30,9 +43,9 @@ $rows =
 @func_types(OperationTypes) {
     @requires(Funcs f)
 
-    $identifier = #uppercase(f.name)
-    $args       = #lowercase(f.args)
-    $ret        = #snake2pascal(f.ret)
+    $identifier = #concat(f.name, `_ft`)
+    $args       = f.args
+    $ret        = f.ret
 }
 
 
@@ -56,34 +69,8 @@ $rows =
     $template = `
 internal void load_funcs() {
 
-    {{range .}} {{.og.identifier}} = ({{.ot.identifier}} *)wgl_load("{{.og.identifier}}");
+    {{range .}} {{ snake2camel .og.identifier}} = ({{.ot.identifier}} *)wglGetProcAddress("{{ snake2camel .og.identifier}}");
     {{end}}
 }
     `
-}
-
-@genh(math_ops1) {
-	$primitives = {
-		Funcs
-	}
-}
-
-@genc(math_ops2) {
-	$primitives = {
-		FuncKind
-	}
-}
-
-@genhpp(math_ops3) {
-	$primitives = {
-		OperationTypes
-	}
-}
-
-
-@gencpp(math_ops4) {
-	$primitives = {
-		OperationGlobals
-		OperationTypes
-	}
 }

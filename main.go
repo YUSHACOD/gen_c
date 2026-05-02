@@ -2,24 +2,34 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"os"
 
-	"github.com/YUSHACOD/gen_c/genc_fmt"
-	// "github.com/YUSHACOD/gen_c/gnrtr"
+	gf "github.com/YUSHACOD/gen_c/genc_fmt"
+	gnr "github.com/YUSHACOD/gen_c/gnrtr"
 )
 
 func main() {
-	fmt.Printf("Generating c code\n")
+	gnr.InitGen()
 
-	genc_file := os.Args[1]
-	content, err := os.ReadFile(genc_file)
+	fmt.Println("Testing")
+
+	input, err := os.ReadFile("./template.genc")
 	if err != nil {
-		log.Fatalf("Input file reading error => %v", err)
+		fmt.Println(err)
 	}
 
-	// fmt.Printf("%s\n", content)
+	// fmt.Println(string(input))
 
-	genc_fmt.ParseGenc(content)
-	// fmt.Printf("%v\n", gen_commands)
+	t := gf.NewTokenizer(string(input))
+	genc := gf.ParseGenc(t)
+	// for k,v  := range genc.Primitives {
+	// 	fmt.Println("Primitive Id: ", k)
+	// 	fmt.Println("Primitive Val:")
+	// 	v.Print()
+	// }
+
+	w := gf.GenerateWritables(genc)
+	gen := gnr.Gen(w)
+	fmt.Println(gen)
+	os.WriteFile("generated/generated.c", []byte(gen), 0644)
 }

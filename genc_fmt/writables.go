@@ -12,7 +12,6 @@ import (
 
 	"text/template"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/olekukonko/tablewriter"
 )
 
@@ -43,22 +42,6 @@ type FuncGlobal struct {
 	Name string
 }
 
-type GenFileType string
-
-const (
-	GFT_C   GenFileType = "GFT_C"
-	GFT_H   GenFileType = "GFT_H"
-	GFT_CPP GenFileType = "GFT_CPP"
-	GFT_HPP GenFileType = "GFT_HPP"
-)
-
-type GenFile struct {
-	set       bool
-	name      string
-	prim_list []string
-	typ       GenFileType
-}
-
 type Enum2String string
 
 type Custom string
@@ -76,10 +59,6 @@ type GencWritables struct {
 
 	Enum2Strings map[string]Enum2String
 
-	C   GenFile
-	H   GenFile
-	Cpp GenFile
-	Hpp GenFile
 
 	TypeMap   map[string]PrimitiveType
 	PrimOrder []string
@@ -199,10 +178,6 @@ func (w GencWritables) Print() {
 	}
 
 	fmt.Println()
-	spew.Dump(w.C)
-	spew.Dump(w.H)
-	spew.Dump(w.Cpp)
-	spew.Dump(w.Hpp)
 
 	fmt.Println(Yellow)
 	fmt.Println("Type Map ->")
@@ -678,15 +653,6 @@ func (w *GencWritables) expandCustom(p Primitive) Custom {
 	return Custom(res.String())
 }
 
-func (w *GencWritables) extracPrimsForGen(p Primitive) []string {
-	res := p.fields[0].val.evaluateArray(w)
-	for _, r := range res {
-		if _, ok := w.TypeMap[r]; !ok {
-			log.Fatalf("This is not an parsed primitive, not ready for generation %s\n", r)
-		}
-	}
-	return res
-}
 
 func GenerateWritables(genc *GenC) GencWritables {
 
@@ -753,57 +719,6 @@ func GenerateWritables(genc *GenC) GencWritables {
 				wrtb.TypeMap[id] = PT_Custom
 			}
 
-		case PT_GenCFile:
-			{
-				if !wrtb.C.set {
-
-					wrtb.C.set = true
-					wrtb.C.typ = GFT_C
-					wrtb.C.name = id
-					wrtb.C.prim_list = wrtb.extracPrimsForGen(prim)
-				} else {
-					log.Fatalf("This c file is already set")
-				}
-			}
-
-		case PT_GenHFile:
-			{
-				if !wrtb.H.set {
-
-					wrtb.H.set = true
-					wrtb.H.typ = GFT_H
-					wrtb.H.name = id
-					wrtb.H.prim_list = wrtb.extracPrimsForGen(prim)
-				} else {
-					log.Fatalf("This h file is already set")
-				}
-			}
-
-		case PT_GenCPPFile:
-			{
-				if !wrtb.Cpp.set {
-
-					wrtb.Cpp.set = true
-					wrtb.Cpp.typ = GFT_CPP
-					wrtb.Cpp.name = id
-					wrtb.Cpp.prim_list = wrtb.extracPrimsForGen(prim)
-				} else {
-					log.Fatalf("This cpp file is already set")
-				}
-			}
-
-		case PT_GenHPPFile:
-			{
-				if !wrtb.Hpp.set {
-					wrtb.Hpp.set = true
-					wrtb.Hpp.typ = GFT_HPP
-					wrtb.Hpp.name = id
-					wrtb.Hpp.prim_list = wrtb.extracPrimsForGen(prim)
-
-				} else {
-					log.Fatalf("This hpp file is already set")
-				}
-			}
 
 		default:
 			{
