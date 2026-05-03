@@ -650,7 +650,7 @@ func (w *GencWritables) expandCustom(p Primitive) Custom {
 		}
 	}
 
-	return Custom(res.String())
+	return Custom(strings.ReplaceAll(res.String(), "\r", ""))
 }
 
 

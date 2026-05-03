@@ -10,8 +10,7 @@ import (
 	gnr "github.com/YUSHACOD/gen_c/gnrtr"
 )
 
-func main() {
-	fmt.Println("Gencing")
+func run() {
 	gnr.InitGen()
 
 	root := "."
@@ -55,9 +54,14 @@ func main() {
 					genc := gf.ParseGenc(t)
 
 					w := gf.GenerateWritables(genc)
-					gen := gnr.Gen(w)
 
-					os.WriteFile(fp.Join(dir, path[:len(path)-5]+"."+ext), []byte(gen), 0644)
+					gen := gnr.Gen(w)
+					// fmt.Println(gen)
+					name := fp.Base(path)
+					fmt.Println("file: ", fp.Join(dir, name[:len(name)-5]+"."+ext))
+
+					os.WriteFile(fp.Join(dir, fp.Base(name)[:len(name)-5]+"."+ext), []byte(gen), 0644)
+
 				}
 			}
 		}
@@ -67,4 +71,9 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+}
+
+func main() {
+	fmt.Println("Gencing")
+	run()
 }
