@@ -5,16 +5,18 @@ import (
 	"log"
 	"os"
 	fp "path/filepath"
+	"testing"
 
 	gf "github.com/YUSHACOD/gen_c/genc_fmt"
 	gnr "github.com/YUSHACOD/gen_c/gnrtr"
 )
 
-func main() {
-	fmt.Println("Gencing")
+func Test(_ *testing.T) {
+	fmt.Println("Testing")
+
 	gnr.InitGen()
 
-	root := "."
+	root := "." // or any directory
 
 	err := fp.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -36,28 +38,35 @@ func main() {
 			case ".ghpp":
 				{
 					dir = fp.Join(dir, "generated")
-
+					fmt.Println(dir)
 					os.Mkdir(dir, 0755)
 					ext := "c"
-
 					if path[len(path)-1] == 'p' {
 						ext = path[len(path)-3:]
 					} else {
 						ext = path[len(path)-1:]
 					}
+					fmt.Println(ext)
 
 					input, err := os.ReadFile(path)
 					if err != nil {
 						fmt.Println(err)
 					}
 
+					// fmt.Println(string(input))
+
 					t := gf.NewTokenizer(string(input))
 					genc := gf.ParseGenc(t)
 
 					w := gf.GenerateWritables(genc)
-					gen := gnr.Gen(w)
 
-					os.WriteFile(fp.Join(dir, path[:len(path)-5]+"."+ext), []byte(gen), 0644)
+					// w.Print()
+
+					gen := gnr.Gen(w)
+					fmt.Println(gen)
+
+					os.WriteFile(fp.Join(dir, path[:len(path)-5]+ "." + ext), []byte(gen), 0644)
+
 				}
 			}
 		}
@@ -67,4 +76,5 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
 }

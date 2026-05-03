@@ -1043,11 +1043,11 @@ func ParseGenc(t *Tokenizer) *GenC {
 
 		default:
 			{
-				for k, v := range genc.Primitives {
-					fmt.Println("Primitive Id: ", k)
-					fmt.Println("Primitive Val:")
-					v.Print()
-				}
+				// for k, v := range genc.Primitives {
+				// 	fmt.Println("Primitive Id: ", k)
+				// 	fmt.Println("Primitive Val:")
+				// 	v.Print()
+				// }
 				p.Errorf("Invalid Primitive type: %s", p.currToken.Str)
 			}
 		}

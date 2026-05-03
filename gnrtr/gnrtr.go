@@ -6,7 +6,7 @@ import (
 	"text/template"
 
 	gf "github.com/YUSHACOD/gen_c/genc_fmt"
-	"github.com/davecgh/go-spew/spew"
+	// "github.com/davecgh/go-spew/spew"
 )
 
 //  templates : ---------------------------------------------------------------------- (section)  //
@@ -75,8 +75,6 @@ func InitGen() {
 
 func Gen(w gf.GencWritables) string {
 
-	w.Print()
-
 	var s strings.Builder
 	for _, prim_id := range w.PrimOrder {
 		switch w.TypeMap[prim_id] {
@@ -89,7 +87,7 @@ func Gen(w gf.GencWritables) string {
 					Id:    prim_id,
 					Names: w.Enums[prim_id].Value_names,
 				}
-				spew.Dump(enum_temp_struct)
+				// spew.Dump(enum_temp_struct)
 				Templates[gf.PT_Enum].Execute(&s, enum_temp_struct)
 			}
 
@@ -109,7 +107,7 @@ func Gen(w gf.GencWritables) string {
 					ValueNames: values,
 				}
 
-				spew.Dump(enum_to_string_struct)
+				// spew.Dump(enum_to_string_struct)
 				Templates[gf.PT_Enum2String].Execute(&s, enum_to_string_struct)
 			}
 
@@ -135,24 +133,24 @@ func Gen(w gf.GencWritables) string {
 					Fields: fields,
 				}
 
-				spew.Dump(struct_temp_struct)
+				// spew.Dump(struct_temp_struct)
 				Templates[gf.PT_Struct].Execute(&s, struct_temp_struct)
 			}
 
 		case gf.PT_FuncTypes:
 			{
-				spew.Dump(w.FuncTypes[prim_id])
+				// spew.Dump(w.FuncTypes[prim_id])
 				Templates[gf.PT_FuncTypes].Execute(&s, w.FuncTypes[prim_id])
 			}
 		case gf.PT_FuncGlobals:
 			{
-				spew.Dump(w.FuncGlobals[prim_id])
+				// spew.Dump(w.FuncGlobals[prim_id])
 				Templates[gf.PT_FuncGlobals].Execute(&s, w.FuncGlobals[prim_id])
 			}
 
 		case gf.PT_Custom:
 			{
-				spew.Dump(w.Customs[prim_id])
+				// spew.Dump(w.Customs[prim_id])
 				s.WriteString(string(w.Customs[prim_id]))
 			}
 		}
